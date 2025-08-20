@@ -7,21 +7,224 @@ import sqlite3
 import io
 from openai import OpenAI
 import re
+import plotly.express as px
+import plotly.graph_objects as go
+from datetime import datetime
+
+# Page configuration
+st.set_page_config(
+    page_title="VexaAI Data Analyst",
+    page_icon="🤖",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Custom CSS for modern styling
+st.markdown("""
+<style>
+    /* Import Google Fonts */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    
+    /* Global styling */
+    .main {
+        padding-top: 1rem;
+    }
+    
+    /* Header styling */
+    .main-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 2rem 2rem 3rem 2rem;
+        border-radius: 15px;
+        margin-bottom: 2rem;
+        color: white;
+        text-align: center;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    }
+    
+    .main-header h1 {
+        font-family: 'Inter', sans-serif;
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .main-header p {
+        font-size: 1.2rem;
+        opacity: 0.9;
+        font-weight: 300;
+        margin-bottom: 1rem;
+    }
+    
+    .company-info {
+        font-size: 0.9rem;
+        opacity: 0.8;
+        font-style: italic;
+    }
+    
+    /* Metric cards styling */
+    .metric-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 10px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        border-left: 4px solid #667eea;
+        margin: 0.5rem 0;
+    }
+    
+    /* Info boxes */
+    .info-box {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        color: white;
+        padding: 1.5rem;
+        border-radius: 10px;
+        margin: 1rem 0;
+        text-align: center;
+        box-shadow: 0 6px 20px rgba(240, 147, 251, 0.3);
+    }
+    
+    .success-box {
+        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        color: white;
+        padding: 1rem;
+        border-radius: 8px;
+        margin: 1rem 0;
+        box-shadow: 0 4px 15px rgba(79, 172, 254, 0.3);
+    }
+    
+    /* Button styling */
+    .stButton > button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 25px;
+        padding: 0.75rem 2rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+    }
+    
+    /* Sidebar styling */
+    .sidebar .sidebar-content {
+        background: linear-gradient(180deg, #f8f9ff 0%, #e6eaff 100%);
+    }
+    
+    /* Card styling */
+    .data-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        margin: 1rem 0;
+        border: 1px solid #e0e6ff;
+    }
+    
+    /* Progress bar */
+    .custom-progress {
+        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        height: 4px;
+        border-radius: 2px;
+        margin: 1rem 0;
+    }
+    
+    /* Icon styling */
+    .icon {
+        font-size: 1.5rem;
+        margin-right: 0.5rem;
+        vertical-align: middle;
+    }
+    
+    /* Upload area styling */
+    .uploadedFile {
+        border: 2px dashed #667eea;
+        border-radius: 10px;
+        padding: 2rem;
+        text-align: center;
+        background: linear-gradient(135deg, #f8f9ff 0%, #e6eaff 100%);
+    }
+    
+    /* Results section */
+    .results-container {
+        background: white;
+        border-radius: 15px;
+        padding: 2rem;
+        box-shadow: 0 6px 25px rgba(0,0,0,0.1);
+        margin: 2rem 0;
+        border-top: 4px solid #667eea;
+    }
+    
+    /* Footer styling */
+    .footer {
+        text-align: center;
+        padding: 2rem;
+        margin-top: 3rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 15px;
+        font-family: 'Inter', sans-serif;
+    }
+    
+    /* Animation */
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .fade-in {
+        animation: fadeIn 0.6s ease-out;
+    }
+    
+    /* Status indicators */
+    .status-success {
+        color: #10B981;
+        font-weight: 600;
+    }
+    
+    .status-warning {
+        color: #F59E0B;
+        font-weight: 600;
+    }
+    
+    .status-error {
+        color: #EF4444;
+        font-weight: 600;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # Function to preprocess and save the uploaded file
 def preprocess_and_save(file):
     try:
         # Read the uploaded file into a DataFrame
         if file.name.endswith('.csv'):
+            # Reset file pointer in case it was read earlier
+            file.seek(0)
             df = pd.read_csv(file, encoding='utf-8', na_values=['NA', 'N/A', 'missing'])
         elif file.name.endswith('.xlsx'):
+            file.seek(0)
             df = pd.read_excel(file, na_values=['NA', 'N/A', 'missing'])
         else:
             st.error("Unsupported file format. Please upload a CSV or Excel file.")
-            return None, None, None
+            return None
         
+        # Check if DataFrame has columns
+        if df.empty or len(df.columns) == 0:
+            st.error("Uploaded file has no data or no valid columns. Please check the file.")
+            return None
+
         # Clean column names
-        df.columns = df.columns.str.strip().str.replace(' ', '_').str.replace('[^A-Za-z0-9_]', '', regex=True)
+        df.columns = (
+            df.columns
+            .astype(str)
+            .str.strip()
+            .str.replace(' ', '_')
+            .str.replace('[^A-Za-z0-9_]', '', regex=True)
+        )
         
         # Parse dates and numeric columns
         for col in df.columns:
@@ -30,13 +233,15 @@ def preprocess_and_save(file):
             elif df[col].dtype == 'object':
                 try:
                     df[col] = pd.to_numeric(df[col], errors='ignore')
-                except (ValueError, TypeError):
+                except Exception:
                     pass
         
         return df
+
     except Exception as e:
         st.error(f"Error processing file: {e}")
         return None
+
 
 def generate_sql_query(user_query, columns, table_name="data", client=None):
     """Generate SQL query using OpenAI"""
@@ -138,32 +343,121 @@ def interpret_results(query, sql_query, results, client):
     except Exception as e:
         return f"Results retrieved successfully, but couldn't generate interpretation: {e}"
 
-# Streamlit app
-st.title("📊 Data Analyst Agent")
-st.markdown("Upload your data and ask questions in natural language!")
+# Main header
+st.markdown("""
+<div class="main-header fade-in">
+    <h1>🤖 VexaAI Data Analyst</h1>
+    <p>Transform your data into insights with AI-powered natural language queries</p>
+    <div class="company-info">Developed by John Evans Okyere | VexaAI</div>
+</div>
+""", unsafe_allow_html=True)
 
-# Sidebar for API keys
+# Sidebar with enhanced styling
 with st.sidebar:
-    st.header("Configuration")
-    openai_key = st.text_input("OpenAI API Key", type="password", placeholder="Enter your OpenAI API key")
-    if openai_key:
-        st.session_state.openai_key = openai_key
-        st.success("✅ API key saved!")
-    else:
-        st.warning("⚠️ Please enter your OpenAI API key to proceed.")
+    st.markdown("### ⚙️ Configuration")
+    
+    # API Key input with enhanced styling
+    with st.container():
+        st.markdown('<div class="data-card">', unsafe_allow_html=True)
+        st.markdown("**🔑 OpenAI API Key**")
+        openai_key = st.text_input(
+            "Enter your OpenAI API key",
+            type="password", 
+            placeholder="sk-...",
+            label_visibility="collapsed"
+        )
+        if openai_key:
+            st.session_state.openai_key = openai_key
+            st.markdown('<p class="status-success">✅ API key configured!</p>', unsafe_allow_html=True)
+        else:
+            st.markdown('<p class="status-warning">⚠️ API key required to proceed</p>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
     
     st.markdown("---")
-    st.markdown("### How to use:")
-    st.markdown("""
-    1. Enter your OpenAI API key
-    2. Upload a CSV or Excel file
-    3. Ask questions about your data
-    4. Get SQL queries and insights automatically
-    """)
+    
+    # How to use section
+    with st.expander("📖 How to Use", expanded=True):
+        st.markdown("""
+        **Step-by-step guide:**
+        
+        1. 🔑 **Enter API Key**
+           - Add your OpenAI API key above
+        
+        2. 📂 **Upload Data**
+           - Support for CSV & Excel files
+           - Auto-detects data types
+        
+        3. 💬 **Ask Questions**
+           - Use natural language
+           - Get SQL queries automatically
+        
+        4. 📊 **Get Insights**
+           - View results instantly
+           - Download analysis
+        """)
+    
+    # Sample questions
+    with st.expander("💡 Example Questions"):
+        st.markdown("""
+        **Try these sample queries:**
+        
+        • *"What are the top 10 products by sales?"*
+        • *"Show me monthly revenue trends"*
+        • *"How many customers by region?"*
+        • *"What's the average order value?"*
+        • *"Which products have low inventory?"*
+        """)
+    
+    # Status indicator
+    st.markdown("---")
+    st.markdown("### 🔄 Status")
+    if "openai_key" in st.session_state:
+        st.success("🟢 Ready to analyze")
+    else:
+        st.error("🔴 Waiting for API key")
 
-# File upload widget
-uploaded_file = st.file_uploader("Upload a CSV or Excel file", type=["csv", "xlsx"])
+# Main content area
+col1, col2 = st.columns([2, 1])
 
+with col1:
+    # File upload with modern styling
+    st.markdown("### 📂 Upload Your Data")
+    
+    uploaded_file = st.file_uploader(
+        "Choose a file",
+        type=["csv", "xlsx"],
+        help="Upload CSV or Excel files up to 200MB"
+    )
+    
+    if uploaded_file is not None:
+        st.markdown(f"""
+        <div class="success-box">
+            <strong>📄 {uploaded_file.name}</strong><br>
+            <small>{uploaded_file.size / 1024:.1f} KB • {uploaded_file.type}</small>
+        </div>
+        """, unsafe_allow_html=True)
+
+with col2:
+    if uploaded_file is not None and "openai_key" in st.session_state:
+        # Quick stats
+        st.markdown("### 📈 Quick Stats")
+        try:
+            if uploaded_file.name.endswith('.csv'):
+                temp_df = pd.read_csv(uploaded_file)
+            else:
+                temp_df = pd.read_excel(uploaded_file)
+            
+            col_a, col_b = st.columns(2)
+            with col_a:
+                st.metric("Rows", f"{len(temp_df):,}")
+                st.metric("Columns", len(temp_df.columns))
+            with col_b:
+                st.metric("Size", f"{uploaded_file.size / 1024:.1f} KB")
+                st.metric("Type", uploaded_file.name.split('.')[-1].upper())
+        except:
+            pass
+
+# Main processing logic
 if uploaded_file is not None and "openai_key" in st.session_state:
     # Initialize OpenAI client
     try:
@@ -172,62 +466,153 @@ if uploaded_file is not None and "openai_key" in st.session_state:
         st.error(f"Failed to initialize OpenAI client: {e}")
         st.stop()
     
-    # Preprocess the uploaded file
-    df = preprocess_and_save(uploaded_file)
+    # Process the uploaded file
+    with st.spinner('🔄 Processing your data...'):
+        df = preprocess_and_save(uploaded_file)
     
     if df is not None:
-        st.success(f"✅ File uploaded successfully! ({len(df)} rows, {len(df.columns)} columns)")
+        # Success message
+        st.markdown(f"""
+        <div class="success-box fade-in">
+            <h4>✅ Data Loaded Successfully!</h4>
+            <p>{len(df):,} rows • {len(df.columns)} columns • {df.memory_usage(deep=True).sum() / 1024:.1f} KB</p>
+        </div>
+        """, unsafe_allow_html=True)
         
-        # Display basic info about the dataset
-        col1, col2, col3 = st.columns(3)
+        # Enhanced metrics display
+        col1, col2, col3, col4 = st.columns(4)
+        
         with col1:
-            st.metric("Rows", len(df))
+            st.markdown("""
+            <div class="metric-card">
+                <h3>📊 {}</h3>
+                <p>Total Rows</p>
+            </div>
+            """.format(f"{len(df):,}"), unsafe_allow_html=True)
+        
         with col2:
-            st.metric("Columns", len(df.columns))
+            st.markdown("""
+            <div class="metric-card">
+                <h3>📋 {}</h3>
+                <p>Columns</p>
+            </div>
+            """.format(len(df.columns)), unsafe_allow_html=True)
+        
         with col3:
-            st.metric("Memory Usage", f"{df.memory_usage(deep=True).sum() / 1024:.1f} KB")
+            numeric_cols = len(df.select_dtypes(include=['number']).columns)
+            st.markdown("""
+            <div class="metric-card">
+                <h3>🔢 {}</h3>
+                <p>Numeric Fields</p>
+            </div>
+            """.format(numeric_cols), unsafe_allow_html=True)
         
-        # Show data preview
-        with st.expander("📋 Data Preview", expanded=True):
-            st.dataframe(df.head(10), use_container_width=True)
+        with col4:
+            text_cols = len(df.select_dtypes(include=['object']).columns)
+            st.markdown("""
+            <div class="metric-card">
+                <h3>📝 {}</h3>
+                <p>Text Fields</p>
+            </div>
+            """.format(text_cols), unsafe_allow_html=True)
         
-        # Show column information
-        with st.expander("📊 Column Information"):
+        # Tabs for data exploration
+        tab1, tab2, tab3 = st.tabs(["🔍 Data Preview", "📋 Column Info", "📊 Data Profile"])
+        
+        with tab1:
+            st.markdown("#### First 10 rows of your data")
+            st.dataframe(df.head(10), use_container_width=True, height=400)
+        
+        with tab2:
             col_info = pd.DataFrame({
                 'Column': df.columns,
                 'Type': df.dtypes.astype(str),
-                'Non-Null Count': df.count(),
-                'Null Count': df.isnull().sum()
+                'Non-Null': df.count(),
+                'Null Count': df.isnull().sum(),
+                'Null %': (df.isnull().sum() / len(df) * 100).round(1)
             })
-            st.dataframe(col_info, use_container_width=True)
+            st.dataframe(col_info, use_container_width=True, height=400)
         
-        st.markdown("---")
-        
-        # Query input
-        st.subheader("🤔 Ask a Question About Your Data")
-        
-        # Sample questions
-        with st.expander("💡 Example Questions"):
-            st.markdown("""
-            - What are the top 10 values by [column name]?
-            - Show me the average of [column name] by [another column]
-            - How many unique values are in [column name]?
-            - What's the distribution of [column name]?
-            - Show me records where [column name] is greater than [value]
-            """)
-        
-        user_query = st.text_area(
-            "Enter your question:", 
-            placeholder="e.g., What are the top 5 products by sales?",
-            height=100
-        )
-        
-        if st.button("🔍 Analyze", type="primary", use_container_width=True):
-            if not user_query.strip():
-                st.warning("Please enter a question.")
+        with tab3:
+            # Basic data profiling
+            st.markdown("#### Data Quality Overview")
+            
+            # Missing data visualization
+            missing_data = df.isnull().sum()
+            if missing_data.sum() > 0:
+                fig = px.bar(
+                    x=missing_data.index,
+                    y=missing_data.values,
+                    title="Missing Values by Column",
+                    labels={'x': 'Columns', 'y': 'Missing Count'}
+                )
+                fig.update_layout(height=400)
+                st.plotly_chart(fig, use_container_width=True)
             else:
+                st.success("🎉 No missing values detected!")
+        
+        # Query interface
+        st.markdown("---")
+        st.markdown("## 🤔 Ask Questions About Your Data")
+        
+        # Enhanced query input
+        with st.container():
+            st.markdown('<div class="data-card">', unsafe_allow_html=True)
+            
+            # Quick action buttons
+            st.markdown("**Quick Actions:**")
+            quick_cols = st.columns(4)
+            
+            with quick_cols[0]:
+                if st.button("📊 Show Summary"):
+                    st.session_state.quick_query = "Show me a summary of all numeric columns"
+            
+            with quick_cols[1]:
+                if st.button("🏆 Top Records"):
+                    st.session_state.quick_query = "Show me the top 10 records"
+            
+            with quick_cols[2]:
+                if st.button("🔍 Data Types"):
+                    st.session_state.quick_query = "Show me the data types of all columns"
+            
+            with quick_cols[3]:
+                if st.button("📈 Trends"):
+                    st.session_state.quick_query = "Show me any trends in the data"
+            
+            # Main query input
+            user_query = st.text_area(
+                "Enter your question:",
+                value=st.session_state.get('quick_query', ''),
+                placeholder="e.g., What are the top 5 products by sales revenue?",
+                height=120,
+                help="Ask any question about your data in natural language"
+            )
+            
+            # Clear quick query after use
+            if 'quick_query' in st.session_state:
+                del st.session_state.quick_query
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Analysis button
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            analyze_clicked = st.button(
+                "🚀 Analyze Data",
+                type="primary",
+                use_container_width=True
+            )
+        
+        # Process query
+        if analyze_clicked:
+            if not user_query.strip():
+                st.warning("💭 Please enter a question to analyze your data.")
+            else:
+                # Create results container
+                st.markdown('<div class="results-container fade-in">', unsafe_allow_html=True)
+                
+                # Step 1: Generate SQL
                 with st.spinner('🧠 Generating SQL query...'):
-                    # Generate SQL query
                     sql_query = generate_sql_query(
                         user_query, 
                         df.columns.tolist(), 
@@ -236,28 +621,42 @@ if uploaded_file is not None and "openai_key" in st.session_state:
                     )
                 
                 if sql_query:
+                    # Display generated SQL
                     st.markdown("### 🔧 Generated SQL Query")
                     st.code(sql_query, language="sql")
                     
+                    # Step 2: Execute query
                     with st.spinner('⚡ Executing query...'):
-                        # Execute query
                         results = execute_query(df, sql_query)
                     
                     if results is not None and len(results) > 0:
+                        # Display results
                         st.markdown("### 📊 Query Results")
-                        st.dataframe(results, use_container_width=True)
                         
-                        # Download results
+                        # Results metrics
+                        result_cols = st.columns(3)
+                        with result_cols[0]:
+                            st.metric("Rows Returned", len(results))
+                        with result_cols[1]:
+                            st.metric("Columns", len(results.columns))
+                        with result_cols[2]:
+                            st.metric("Data Size", f"{results.memory_usage(deep=True).sum() / 1024:.1f} KB")
+                        
+                        # Show results
+                        st.dataframe(results, use_container_width=True, height=400)
+                        
+                        # Download button
                         csv_buffer = io.StringIO()
                         results.to_csv(csv_buffer, index=False)
                         st.download_button(
                             label="📥 Download Results as CSV",
                             data=csv_buffer.getvalue(),
-                            file_name="query_results.csv",
-                            mime="text/csv"
+                            file_name=f"analysis_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                            mime="text/csv",
+                            use_container_width=True
                         )
                         
-                        # Generate interpretation
+                        # Step 3: Generate insights
                         with st.spinner('🎯 Generating insights...'):
                             interpretation = interpret_results(
                                 user_query, 
@@ -266,26 +665,72 @@ if uploaded_file is not None and "openai_key" in st.session_state:
                                 client
                             )
                         
-                        st.markdown("### 💡 Analysis & Insights")
-                        st.markdown(interpretation)
+                        # Display insights
+                        st.markdown("### 💡 AI Analysis & Insights")
+                        st.markdown(f"""
+                        <div class="info-box">
+                            {interpretation}
+                        </div>
+                        """, unsafe_allow_html=True)
                         
                     elif results is not None and len(results) == 0:
-                        st.warning("Query executed successfully but returned no results.")
+                        st.warning("🔍 Query executed successfully but returned no results. Try adjusting your question.")
                     else:
-                        st.error("Failed to execute the query. Please try rephrasing your question.")
+                        st.error("❌ Failed to execute the query. Please try rephrasing your question.")
                 else:
-                    st.error("Failed to generate SQL query. Please try rephrasing your question.")
+                    st.error("❌ Failed to generate SQL query. Please try rephrasing your question.")
+                
+                st.markdown('</div>', unsafe_allow_html=True)
 
 elif uploaded_file is not None:
-    st.warning("⚠️ Please enter your OpenAI API key in the sidebar to continue.")
+    st.markdown("""
+    <div class="info-box">
+        <h4>⚠️ API Key Required</h4>
+        <p>Please enter your OpenAI API key in the sidebar to start analyzing your data.</p>
+    </div>
+    """, unsafe_allow_html=True)
 else:
-    st.info("👆 Please upload a CSV or Excel file to get started.")
+    # Welcome screen
+    st.markdown("""
+    <div class="info-box fade-in">
+        <h3>🚀 Ready to Get Started?</h3>
+        <p>Upload your CSV or Excel file above and start asking questions about your data in natural language!</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Feature highlights
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("""
+        <div class="data-card">
+            <h4>🤖 AI-Powered</h4>
+            <p>Convert natural language questions into SQL queries automatically using advanced AI</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("""
+        <div class="data-card">
+            <h4>📊 Smart Analysis</h4>
+            <p>Get instant insights and interpretations of your data with contextual explanations</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown("""
+        <div class="data-card">
+            <h4>🔒 Secure</h4>
+            <p>Your data is processed locally and never stored. Complete privacy and security</p>
+        </div>
+        """, unsafe_allow_html=True)
 
-# Footer
-st.markdown("---")
-st.markdown(
-    "<div style='text-align: center; color: gray;'>"
-    "Built with ❤️ using Streamlit, OpenAI, and Pandas"
-    "</div>", 
-    unsafe_allow_html=True
-)
+# Enhanced footer
+st.markdown("""
+<div class="footer">
+    <h4>🤖 VexaAI Data Analyst</h4>
+    <p>Empowering data-driven decisions with AI technology</p>
+    <p><strong>Developed by John Evans Okyere</strong> | VexaAI © 2025</p>
+    <p><small>Built with ❤️ using Streamlit, OpenAI GPT, and Modern Web Technologies</small></p>
+</div>
+""", unsafe_allow_html=True)
