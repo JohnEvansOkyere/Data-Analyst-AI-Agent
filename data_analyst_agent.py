@@ -5,7 +5,7 @@ import streamlit as st
 import pandas as pd
 import sqlite3
 import io
-from openai import OpenAI
+import requests
 import re
 import plotly.express as px
 import plotly.graph_objects as go
@@ -90,6 +90,15 @@ st.markdown("""
         border-radius: 8px;
         margin: 1rem 0;
         box-shadow: 0 4px 15px rgba(79, 172, 254, 0.3);
+    }
+    
+    .groq-box {
+        background: linear-gradient(135deg, #FF6B6B 0%, #4ECDC4 100%);
+        color: white;
+        padding: 1rem;
+        border-radius: 8px;
+        margin: 1rem 0;
+        box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
     }
     
     /* Button styling */
@@ -197,6 +206,43 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# Groq API client class
+class GroqClient:
+    def __init__(self, api_key):
+        self.api_key = api_key
+        self.base_url = "https://api.groq.com/openai/v1"
+        
+    def chat_completion(self, messages, model="llama-3.3-70b-versatile", max_tokens=500, temperature=0.1):
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        data = {
+            "model": model,
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature
+        }
+        
+        try:
+            response = requests.post(
+                f"{self.base_url}/chat/completions",
+                headers=headers,
+                json=data,
+                timeout=30
+            )
+            
+            # Debug information
+            if response.status_code != 200:
+                st.error(f"API Response Status: {response.status_code}")
+                st.error(f"API Response: {response.text}")
+            
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            raise Exception(f"Groq API error: {str(e)}")
+
 # Function to preprocess and save the uploaded file
 def preprocess_and_save(file):
     try:
@@ -244,7 +290,7 @@ def preprocess_and_save(file):
 
 
 def generate_sql_query(user_query, columns, table_name="data", client=None):
-    """Generate SQL query using OpenAI"""
+    """Generate SQL query using Groq"""
     column_info = ", ".join(columns)
     
     prompt = f"""
@@ -262,31 +308,34 @@ def generate_sql_query(user_query, columns, table_name="data", client=None):
     4. If the query seems ambiguous, make reasonable assumptions
     5. For aggregations, use appropriate GROUP BY clauses
     6. Use table name '{table_name}' in your query
+    7. Do not include markdown formatting or code blocks
     
     SQL Query:
     """
     
     try:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=200,
+        messages = [{"role": "user", "content": prompt}]
+        response = client.chat_completion(
+            messages=messages,
+            max_tokens=300,
             temperature=0.1
         )
         
-        sql_query = response.choices[0].message.content.strip()
+        sql_query = response['choices'][0]['message']['content'].strip()
         
         # Clean the SQL query
         sql_query = sql_query.replace('```sql', '').replace('```', '').strip()
+        
+        # Extract SQL if it's wrapped in text
+        lines = sql_query.split('\n')
+        for line in lines:
+            line = line.strip()
+            if line.upper().startswith('SELECT'):
+                return line
+        
         if sql_query.startswith('SELECT') or sql_query.startswith('select'):
             return sql_query
         else:
-            # Extract SQL from response if it's wrapped in text
-            lines = sql_query.split('\n')
-            for line in lines:
-                line = line.strip()
-                if line.upper().startswith('SELECT'):
-                    return line
             return sql_query
             
     except Exception as e:
@@ -312,7 +361,7 @@ def execute_query(df, sql_query):
         return None
 
 def interpret_results(query, sql_query, results, client):
-    """Generate interpretation of results using OpenAI"""
+    """Generate interpretation of results using Groq"""
     results_preview = results.head(10).to_string() if len(results) > 10 else results.to_string()
     
     prompt = f"""
@@ -328,18 +377,18 @@ def interpret_results(query, sql_query, results, client):
     2. Key insights or patterns
     3. Answer to the original question
     
-    Keep the response clear and business-friendly.
+    Keep the response clear and business-friendly. Do not use markdown formatting.
     """
     
     try:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=300,
+        messages = [{"role": "user", "content": prompt}]
+        response = client.chat_completion(
+            messages=messages,
+            max_tokens=400,
             temperature=0.3
         )
         
-        return response.choices[0].message.content.strip()
+        return response['choices'][0]['message']['content'].strip()
     except Exception as e:
         return f"Results retrieved successfully, but couldn't generate interpretation: {e}"
 
@@ -348,7 +397,7 @@ st.markdown("""
 <div class="main-header fade-in">
     <h1>🤖 VexaAI Data Analyst</h1>
     <p>Transform your data into insights with AI-powered natural language queries</p>
-    <div class="company-info">Developed by John Evans Okyere | VexaAI</div>
+    <div class="company-info">Developed by John Evans Okyere | VexaAI | Powered by Groq AI ⚡</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -356,22 +405,81 @@ st.markdown("""
 with st.sidebar:
     st.markdown("### ⚙️ Configuration")
     
+    # Groq info box
+    st.markdown("""
+    <div class="groq-box">
+        <h4>⚡ Powered by Groq</h4>
+        <p><strong>FREE & FAST AI</strong><br>
+        • Lightning-fast inference<br>
+        • 14,400 requests/day free<br>
+        • No credit card required</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
     # API Key input with enhanced styling
     with st.container():
         st.markdown('<div class="data-card">', unsafe_allow_html=True)
-        st.markdown("**🔑 OpenAI API Key**")
-        openai_key = st.text_input(
-            "Enter your OpenAI API key",
+        st.markdown("**🔑 Groq API Key**")
+        
+        # Instructions for getting Groq API key
+        with st.expander("📝 Get Free Groq API Key", expanded=False):
+            st.markdown("""
+            **How to get your FREE Groq API Key:**
+            
+            1. Visit [console.groq.com](https://console.groq.com)
+            2. Sign up with your email (free!)
+            3. Go to API Keys section
+            4. Click "Create API Key"
+            5. Copy and paste it below
+            
+            **Free Tier Includes:**
+            • 14,400 requests per day
+            • Multiple AI models
+            • Lightning fast responses
+            • No credit card required
+            """)
+        
+        groq_key = st.text_input(
+            "Enter your Groq API key",
             type="password", 
-            placeholder="sk-...",
-            label_visibility="collapsed"
+            placeholder="gsk_...",
+            label_visibility="collapsed",
+            help="Get your free API key from console.groq.com"
         )
-        if openai_key:
-            st.session_state.openai_key = openai_key
-            st.markdown('<p class="status-success">✅ API key configured!</p>', unsafe_allow_html=True)
+        
+        if groq_key:
+            st.session_state.groq_key = groq_key
+            st.markdown('<p class="status-success">✅ Groq API key configured!</p>', unsafe_allow_html=True)
         else:
-            st.markdown('<p class="status-warning">⚠️ API key required to proceed</p>', unsafe_allow_html=True)
+            st.markdown('<p class="status-warning">⚠️ Free Groq API key required</p>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Model selection
+    if "groq_key" in st.session_state:
+        st.markdown("**🧠 AI Model Selection**")
+        model_choice = st.selectbox(
+            "Choose AI Model:",
+            [
+                "llama-3.3-70b-versatile",
+                "llama-3.1-8b-instant", 
+                "gemma2-9b-it",
+                "deepseek-r1-distill-llama-70b",
+                "qwen/qwen3-32b"
+            ],
+            help="Different models offer various capabilities and speeds"
+        )
+        st.session_state.selected_model = model_choice
+        
+        # Model info
+        model_info = {
+            "llama-3.3-70b-versatile": "🚀 Best overall performance (Meta's latest)",
+            "llama-3.1-8b-instant": "⚡ Fastest responses", 
+            "gemma2-9b-it": "🎯 Efficient and accurate (Google)",
+            "deepseek-r1-distill-llama-70b": "🧠 Advanced reasoning capabilities",
+            "qwen/qwen3-32b": "🌐 Multilingual powerhouse"
+        }
+        
+        st.info(model_info.get(model_choice, "Great choice!"))
     
     st.markdown("---")
     
@@ -380,8 +488,10 @@ with st.sidebar:
         st.markdown("""
         **Step-by-step guide:**
         
-        1. 🔑 **Enter API Key**
-           - Add your OpenAI API key above
+        1. 🔑 **Get Free API Key**
+           - Visit console.groq.com
+           - Sign up (completely free!)
+           - Create API key
         
         2. 📂 **Upload Data**
            - Support for CSV & Excel files
@@ -411,10 +521,10 @@ with st.sidebar:
     # Status indicator
     st.markdown("---")
     st.markdown("### 🔄 Status")
-    if "openai_key" in st.session_state:
-        st.success("🟢 Ready to analyze")
+    if "groq_key" in st.session_state:
+        st.success("🟢 Ready to analyze with Groq AI")
     else:
-        st.error("🔴 Waiting for API key")
+        st.error("🔴 Waiting for free Groq API key")
 
 # Main content area
 col1, col2 = st.columns([2, 1])
@@ -438,7 +548,7 @@ with col1:
         """, unsafe_allow_html=True)
 
 with col2:
-    if uploaded_file is not None and "openai_key" in st.session_state:
+    if uploaded_file is not None and "groq_key" in st.session_state:
         # Quick stats
         st.markdown("### 📈 Quick Stats")
         try:
@@ -458,12 +568,12 @@ with col2:
             pass
 
 # Main processing logic
-if uploaded_file is not None and "openai_key" in st.session_state:
-    # Initialize OpenAI client
+if uploaded_file is not None and "groq_key" in st.session_state:
+    # Initialize Groq client
     try:
-        client = OpenAI(api_key=st.session_state.openai_key)
+        client = GroqClient(st.session_state.groq_key)
     except Exception as e:
-        st.error(f"Failed to initialize OpenAI client: {e}")
+        st.error(f"Failed to initialize Groq client: {e}")
         st.stop()
     
     # Process the uploaded file
@@ -598,7 +708,7 @@ if uploaded_file is not None and "openai_key" in st.session_state:
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
             analyze_clicked = st.button(
-                "🚀 Analyze Data",
+                "🚀 Analyze Data with Groq AI",
                 type="primary",
                 use_container_width=True
             )
@@ -612,7 +722,8 @@ if uploaded_file is not None and "openai_key" in st.session_state:
                 st.markdown('<div class="results-container fade-in">', unsafe_allow_html=True)
                 
                 # Step 1: Generate SQL
-                with st.spinner('🧠 Generating SQL query...'):
+                with st.spinner('🧠 Generating SQL query with Groq AI...'):
+                    selected_model = st.session_state.get('selected_model', 'llama-3.1-70b-versatile')
                     sql_query = generate_sql_query(
                         user_query, 
                         df.columns.tolist(), 
@@ -657,7 +768,7 @@ if uploaded_file is not None and "openai_key" in st.session_state:
                         )
                         
                         # Step 3: Generate insights
-                        with st.spinner('🎯 Generating insights...'):
+                        with st.spinner('🎯 Generating insights with Groq AI...'):
                             interpretation = interpret_results(
                                 user_query, 
                                 sql_query, 
@@ -685,8 +796,9 @@ if uploaded_file is not None and "openai_key" in st.session_state:
 elif uploaded_file is not None:
     st.markdown("""
     <div class="info-box">
-        <h4>⚠️ API Key Required</h4>
-        <p>Please enter your OpenAI API key in the sidebar to start analyzing your data.</p>
+        <h4>⚠️ Free Groq API Key Required</h4>
+        <p>Please enter your free Groq API key in the sidebar to start analyzing your data.</p>
+        <p><strong>Get yours free at:</strong> <a href="https://console.groq.com" target="_blank">console.groq.com</a></p>
     </div>
     """, unsafe_allow_html=True)
 else:
@@ -695,6 +807,7 @@ else:
     <div class="info-box fade-in">
         <h3>🚀 Ready to Get Started?</h3>
         <p>Upload your CSV or Excel file above and start asking questions about your data in natural language!</p>
+        <p><strong>Now powered by lightning-fast Groq AI - completely FREE!</strong></p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -704,8 +817,8 @@ else:
     with col1:
         st.markdown("""
         <div class="data-card">
-            <h4>🤖 AI-Powered</h4>
-            <p>Convert natural language questions into SQL queries automatically using advanced AI</p>
+            <h4>⚡ Groq AI-Powered</h4>
+            <p>Convert natural language questions into SQL queries using lightning-fast Groq AI - completely FREE!</p>
         </div>
         """, unsafe_allow_html=True)
     
@@ -720,17 +833,18 @@ else:
     with col3:
         st.markdown("""
         <div class="data-card">
-            <h4>🔒 Secure</h4>
-            <p>Your data is processed locally and never stored. Complete privacy and security</p>
+            <h4>🔒 Secure & Free</h4>
+            <p>Your data is processed locally and never stored. Complete privacy with free AI processing</p>
         </div>
         """, unsafe_allow_html=True)
 
 # Enhanced footer
 st.markdown("""
 <div class="footer">
-    <h4>🤖 VexaAI Data Analyst</h4>
-    <p>Empowering data-driven decisions with AI technology</p>
+    <h4>🤖 VexaAI Data Analyst ⚡</h4>
+    <p>Empowering data-driven decisions with FREE Groq AI technology</p>
     <p><strong>Developed by John Evans Okyere</strong> | VexaAI © 2025</p>
-    <p><small>Built with ❤️ using Streamlit, OpenAI GPT, and Modern Web Technologies</small></p>
+    <p><small>Built with ❤️ using Streamlit, Groq AI, and Modern Web Technologies</small></p>
+    <p><small>🆓 Free forever • ⚡ Lightning fast • 🔒 Privacy first</small></p>
 </div>
 """, unsafe_allow_html=True)
