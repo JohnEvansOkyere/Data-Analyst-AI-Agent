@@ -5,3 +5,6 @@ duckdb
 pandas
 numpy
 agno
+plotly
+requests
+openpyxl
