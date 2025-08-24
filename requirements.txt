@@ -1,10 +1,6 @@
-phidata
 streamlit
-openai
-duckdb
 pandas
 numpy
-agno
 plotly
 requests
 openpyxl
