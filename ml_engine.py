@@ -10,13 +10,13 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
 
-# Groq API client class
+# xAI Grok API client class
 class GroqClient:
     def __init__(self, api_key):
         self.api_key = api_key
-        self.base_url = "https://api.groq.com/openai/v1"
+        self.base_url = "https://api.x.ai/v1"
         
-    def chat_completion(self, messages, model="llama-3.3-70b-versatile", max_tokens=500, temperature=0.1):
+    def chat_completion(self, messages, model="grok-4-fast-reasoning", max_tokens=500, temperature=0.1):
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
@@ -45,7 +45,7 @@ class GroqClient:
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
-            raise Exception(f"Groq API error: {str(e)}")
+            raise Exception(f"xAI API error: {str(e)}")
 
 # Function to preprocess and save the uploaded file
 def preprocess_and_save(file):
@@ -80,8 +80,8 @@ def preprocess_and_save(file):
                 df[col] = pd.to_datetime(df[col], errors='coerce')
             elif df[col].dtype == 'object':
                 try:
-                    df[col] = pd.to_numeric(df[col], errors='ignore')
-                except Exception:
+                    df[col] = pd.to_numeric(df[col])
+                except (ValueError, TypeError):
                     pass
         
         return df
@@ -90,7 +90,7 @@ def preprocess_and_save(file):
         raise Exception(f"Error processing file: {e}")
 
 def generate_sql_query(user_query, columns, table_name="data", client=None):
-    """Generate SQL query using Groq"""
+    """Generate SQL query using Grok"""
     column_info = ", ".join(columns)
     
     prompt = f"""
@@ -159,7 +159,7 @@ def execute_query(df, sql_query):
         raise Exception(f"Error executing query: {e}")
 
 def interpret_results(query, sql_query, results, client):
-    """Generate interpretation of results using Groq"""
+    """Generate interpretation of results using Grok"""
     results_preview = results.head(10).to_string() if len(results) > 10 else results.to_string()
     
     prompt = f"""
