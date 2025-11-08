@@ -1,8 +1,59 @@
-"""
-Git ignore rules
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
-TODO: Paste the code for this file here
-TODO: Remember to commit after adding code!
-"""
+# Virtual Environment
+venv/
+ENV/
+env/
 
-# Your code goes here
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment variables
+.env
+.env.local
+
+# Logs
+logs/
+*.log
+
+# Data files
+data/
+temp/
+*.csv
+*.xlsx
+*.xls
+*.parquet
+
+# Supabase
+.supabase/
+
+# Session files
+authorized_users.json
+
+# OS
+.DS_Store
+Thumbs.db
