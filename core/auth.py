@@ -1,5 +1,5 @@
 """
-Python dependencies
+Authentication and user management
 
 TODO: Paste the code for this file here
 TODO: Remember to commit after adding code!

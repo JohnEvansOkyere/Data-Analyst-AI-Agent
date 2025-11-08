@@ -1,5 +1,5 @@
 """
-Python dependencies
+Statistical analysis and tests
 
 TODO: Paste the code for this file here
 TODO: Remember to commit after adding code!

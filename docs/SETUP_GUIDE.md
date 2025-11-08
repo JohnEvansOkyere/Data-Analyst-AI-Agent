@@ -1,5 +1,5 @@
 """
-Python dependencies
+Detailed setup instructions
 
 TODO: Paste the code for this file here
 TODO: Remember to commit after adding code!

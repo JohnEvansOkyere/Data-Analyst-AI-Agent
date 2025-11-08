@@ -1,5 +1,5 @@
 """
-Python dependencies
+Supabase database operations
 
 TODO: Paste the code for this file here
 TODO: Remember to commit after adding code!

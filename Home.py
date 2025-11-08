@@ -1,5 +1,5 @@
 """
-Python dependencies
+Main Streamlit app entry point
 
 TODO: Paste the code for this file here
 TODO: Remember to commit after adding code!
