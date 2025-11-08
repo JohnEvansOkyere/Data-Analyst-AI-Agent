@@ -2,16 +2,42 @@
 VexaAI Data Analyst Pro - Main Application
 Professional Data Science Platform with MLOps Practices
 """
-
 import streamlit as st
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
+import os
+from database.supabase_manager import get_supabase_manager
+from utils.logger import get_logger
 
-# Add project root to path
+# --- Setup ---
 sys.path.insert(0, str(Path(__file__).parent))
+logger = get_logger(__name__)
 
+# Load .env file (must be in project root)
+load_dotenv()
+
+# --- Initialize Supabase ---
+if "supabase_client" not in st.session_state:
+    try:
+        supabase_manager = get_supabase_manager()
+        if supabase_manager.is_connected():
+            st.session_state.supabase_client = supabase_manager.client
+            logger.info("✅ Supabase client initialized successfully.")
+            print("✅ Supabase client initialized successfully.")
+        else:
+            st.session_state.supabase_client = None
+            logger.warning("⚠️ Supabase credentials missing or invalid.")
+            print("⚠️ Supabase credentials missing or invalid.")
+    except Exception as e:
+        st.session_state.supabase_client = None
+        logger.error(f"❌ Error initializing Supabase: {e}")
+        print(f"❌ Error initializing Supabase: {e}")
+
+# Import after Supabase initialization
 from core.auth import check_authentication
 from config.settings import APP_NAME, APP_VERSION, APP_AUTHOR
+
 
 # Page configuration
 st.set_page_config(
@@ -92,8 +118,15 @@ st.markdown("""
 
 def main():
     # Check authentication
-    if not check_authentication():
+   # Get Supabase client if configured
+# Retrieve Supabase client from session
+    supabase_client = st.session_state.get("supabase_client", None)
+
+    # Authentication check
+    if not check_authentication(supabase_client):
         return
+
+    
     
     # Header
     st.markdown(f"""
