@@ -31,6 +31,7 @@ APP_COMPANY = "VexaAI"
 # Supabase Configuration
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY", "")
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 
 # xAI Grok Configuration
 XAI_BASE_URL = "https://api.x.ai/v1"

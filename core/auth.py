@@ -1,9 +1,14 @@
+"""
+VexaAI Data Analyst Pro - Authentication System
+Supabase-based user authentication with registration and login
+"""
+
 import streamlit as st
 import hashlib
-import json
-import os
-from datetime import datetime, timedelta
+from datetime import datetime
+from supabase import create_client, Client
 from database.supabase_manager import get_supabase_manager
+from config.settings import SUPABASE_URL, SUPABASE_KEY, SUPABASE_SERVICE_ROLE_KEY
 from utils.logger import get_logger, audit_logger
 
 logger = get_logger(__name__)
@@ -16,6 +21,15 @@ class SupabaseAuthManager:
         self.supabase_manager = get_supabase_manager()
         self.client = self.supabase_manager.client if self.supabase_manager.is_connected() else None
         
+        # Admin client with service role key for privileged operations
+        self.admin_client = None
+        if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY:
+            try:
+                self.admin_client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+                logger.info("✅ Admin client initialized with service role key")
+            except Exception as e:
+                logger.error(f"❌ Failed to initialize admin client: {e}")
+        
         if not self.client:
             logger.warning("Supabase not connected - authentication will not work")
     
@@ -24,23 +38,11 @@ class SupabaseAuthManager:
         return hashlib.sha256(password.encode()).hexdigest()
     
     def register_user(self, username: str, email: str, password: str, full_name: str = "") -> tuple[bool, str]:
-        """
-        Register a new user in Supabase
-        
-        Args:
-            username: Unique username
-            email: User email address
-            password: Plain text password (will be hashed)
-            full_name: User's full name (optional)
-        
-        Returns:
-            Tuple of (success: bool, message: str)
-        """
+        """Register a new user in Supabase"""
         try:
             if not self.client:
                 return False, "Database connection not available"
             
-            # Validate inputs
             if not username or not email or not password:
                 return False, "All fields are required"
             
@@ -50,7 +52,6 @@ class SupabaseAuthManager:
             if "@" not in email:
                 return False, "Invalid email address"
             
-            # Check if username or email already exists
             existing = self.client.table('users').select('*').or_(
                 f'username.eq.{username},email.eq.{email}'
             ).execute()
@@ -58,7 +59,6 @@ class SupabaseAuthManager:
             if existing.data:
                 return False, "Username or email already exists"
             
-            # Create new user
             password_hash = self._hash_password(password)
             user_data = {
                 "username": username,
@@ -84,21 +84,11 @@ class SupabaseAuthManager:
             return False, f"Registration failed: {str(e)}"
     
     def authenticate_user(self, username: str, password: str) -> tuple[bool, str, dict]:
-        """
-        Authenticate user against Supabase database
-        
-        Args:
-            username: Username or email
-            password: Plain text password
-        
-        Returns:
-            Tuple of (success: bool, message: str, user_data: dict)
-        """
+        """Authenticate user against Supabase database"""
         try:
             if not self.client:
                 return False, "Database connection not available", {}
             
-            # Query user by username or email
             response = self.client.table('users').select('*').or_(
                 f'username.eq.{username},email.eq.{username}'
             ).execute()
@@ -108,15 +98,14 @@ class SupabaseAuthManager:
             
             user = response.data[0]
             
-            # Check if account is active
             if not user.get('is_active', True):
                 return False, "Account is deactivated", {}
             
-            # Verify password
             password_hash = self._hash_password(password)
             if user['password_hash'] == password_hash:
-                # Update last login
-                self.client.table('users').update({
+                # Use admin client to update last login (bypass RLS)
+                update_client = self.admin_client if self.admin_client else self.client
+                update_client.table('users').update({
                     'last_login': datetime.utcnow().isoformat()
                 }).eq('id', user['id']).execute()
                 
@@ -134,14 +123,28 @@ class SupabaseAuthManager:
     def get_user_by_username(self, username: str) -> dict:
         """Get user data by username"""
         try:
-            if not self.client:
+            client = self.admin_client if self.admin_client else self.client
+            if not client:
                 return {}
             
-            response = self.client.table('users').select('*').eq('username', username).execute()
+            response = client.table('users').select('*').eq('username', username).execute()
             return response.data[0] if response.data else {}
         except Exception as e:
             logger.error(f"Error fetching user: {e}")
             return {}
+    
+    def get_all_users(self) -> list:
+        """Get all users (admin only - uses service role)"""
+        try:
+            client = self.admin_client if self.admin_client else self.client
+            if not client:
+                return []
+            
+            response = client.table('users').select('username, email, full_name, role, is_active, created_at').execute()
+            return response.data if response.data else []
+        except Exception as e:
+            logger.error(f"Error fetching users: {e}")
+            return []
     
     def update_password(self, username: str, old_password: str, new_password: str) -> tuple[bool, str]:
         """Update user password"""
@@ -149,18 +152,18 @@ class SupabaseAuthManager:
             if not self.client:
                 return False, "Database connection not available"
             
-            # Verify old password
             success, message, user = self.authenticate_user(username, old_password)
             if not success:
                 return False, "Current password is incorrect"
             
-            # Validate new password
             if len(new_password) < 8:
                 return False, "New password must be at least 8 characters"
             
-            # Update password
             new_hash = self._hash_password(new_password)
-            self.client.table('users').update({
+            
+            # Use admin client for update (bypass RLS)
+            update_client = self.admin_client if self.admin_client else self.client
+            update_client.table('users').update({
                 'password_hash': new_hash,
                 'updated_at': datetime.utcnow().isoformat()
             }).eq('id', user['id']).execute()
@@ -174,36 +177,74 @@ class SupabaseAuthManager:
             logger.error(f"Password update error: {e}")
             return False, f"Failed to update password: {str(e)}"
     
+    def deactivate_user(self, username: str) -> tuple[bool, str]:
+        """Deactivate a user account (admin only - uses service role)"""
+        try:
+            if not self.admin_client:
+                return False, "Admin privileges required. Service role key not configured."
+            
+            if username == "admin":
+                return False, "Cannot deactivate admin account"
+            
+            self.admin_client.table('users').update({
+                'is_active': False,
+                'updated_at': datetime.utcnow().isoformat()
+            }).eq('username', username).execute()
+            
+            logger.info(f"User deactivated: {username}")
+            audit_logger.log_user_action("admin", "deactivate_user", f"Deactivated user: {username}")
+            
+            return True, f"User {username} deactivated successfully"
+            
+        except Exception as e:
+            logger.error(f"Error deactivating user: {e}")
+            return False, f"Failed to deactivate user: {str(e)}"
+    
+    def activate_user(self, username: str) -> tuple[bool, str]:
+        """Activate a user account (admin only - uses service role)"""
+        try:
+            if not self.admin_client:
+                return False, "Admin privileges required. Service role key not configured."
+            
+            self.admin_client.table('users').update({
+                'is_active': True,
+                'updated_at': datetime.utcnow().isoformat()
+            }).eq('username', username).execute()
+            
+            logger.info(f"User activated: {username}")
+            audit_logger.log_user_action("admin", "activate_user", f"Activated user: {username}")
+            
+            return True, f"User {username} activated successfully"
+            
+        except Exception as e:
+            logger.error(f"Error activating user: {e}")
+            return False, f"Failed to activate user: {str(e)}"
+    
+    def delete_user(self, username: str) -> tuple[bool, str]:
+        """Delete a user account (admin only - uses service role)"""
+        try:
+            if not self.admin_client:
+                return False, "Admin privileges required. Service role key not configured."
+            
+            if username == "admin":
+                return False, "Cannot delete admin account"
+            
+            self.admin_client.table('users').delete().eq('username', username).execute()
+            
+            logger.info(f"User deleted: {username}")
+            audit_logger.log_user_action("admin", "delete_user", f"Deleted user: {username}")
+            
+            return True, f"User {username} deleted successfully"
+            
+        except Exception as e:
+            logger.error(f"Error deleting user: {e}")
+            return False, f"Failed to delete user: {str(e)}"
+    
     def is_admin(self, username: str) -> bool:
         """Check if user is admin"""
         user = self.get_user_by_username(username)
         return user.get('role') == 'admin'
 
-    def get_all_users(self):
-        """
-        Retrieve all users from the Supabase 'users' table.
-        Used by the Admin Panel for user management.
-        """
-        try:
-            if not self.client:
-                logger.error("Supabase client not available in get_all_users()")
-                return []
-
-            response = (
-                self.client.table("users")
-                .select("*")
-                .order("created_at", desc=True)
-                .execute()
-            )
-
-            if response.data:
-                return response.data
-            else:
-                logger.info("No users found in Supabase.")
-                return []
-        except Exception as e:
-            logger.error(f"Error fetching all users: {e}")
-            return []
 
 def show_login_page():
     """Show the login page with tabs for login and registration"""
@@ -214,18 +255,15 @@ def show_login_page():
     </div>
     """, unsafe_allow_html=True)
     
-    # Tabs for Login and Register
     tab1, tab2 = st.tabs(["🔑 Login", "📝 Register"])
     
     auth_manager = SupabaseAuthManager()
     
-    # Check if Supabase is connected
     if not auth_manager.client:
         st.error("❌ Database connection not available. Please configure Supabase in your .env file.")
         st.info("Required: SUPABASE_URL and SUPABASE_ANON_KEY")
         return
     
-    # LOGIN TAB
     with tab1:
         st.markdown("### 🔑 Login to Your Account")
         
@@ -260,7 +298,6 @@ def show_login_page():
             **⚠️ Please change the default password after first login!**
             """)
     
-    # REGISTER TAB
     with tab2:
         st.markdown("### 📝 Create New Account")
         
@@ -292,7 +329,6 @@ def show_login_page():
                     else:
                         st.error(f"❌ {message}")
     
-    # Footer
     st.markdown("---")
     st.markdown("""
     <div style="text-align: center; color: #666;">
