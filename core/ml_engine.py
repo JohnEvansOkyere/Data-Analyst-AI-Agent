@@ -89,49 +89,145 @@ def preprocess_and_save(file):
         raise Exception(f"Error processing file: {e}")
 
 def generate_sql_query(user_query, columns, table_name="data", client=None):
+    """
+    Generate SQL query from natural language using xAI Grok
+    
+    Args:
+        user_query: Natural language question
+        columns: List of column names
+        table_name: Name of the table (default: "data")
+        client: GroqClient instance
+    
+    Returns:
+        str: SQL query
+    """
     column_info = ", ".join(columns)
     
-    prompt = f"""
-    You are a SQL expert. Given a user query and table schema, generate a precise SQL query.
-    
-    Table: {table_name}
-    Columns: {column_info}
-    
-    User Query: {user_query}
-    
-    Rules:
-    1. Return ONLY the SQL query, no explanations
-    2. Use standard SQL syntax compatible with SQLite
-    3. Use the exact column names provided
-    4. If the query seems ambiguous, make reasonable assumptions
-    5. For aggregations, use appropriate GROUP BY clauses
-    6. Use table name '{table_name}' in your query
-    7. Do not include markdown formatting or code blocks
-    
-    SQL Query:
-    """
-    
+    # Enhanced prompt with specific examples
+    prompt = f"""You are an expert SQL query generator. Convert the user's question into a valid, complete, executable SQL query.
+
+        DATABASE SCHEMA:
+        Table name: {table_name}
+        Columns: {column_info}
+
+        CRITICAL INSTRUCTIONS:
+        1. ALWAYS write a COMPLETE SQL query with SELECT, FROM, and any necessary clauses
+        2. Column names are CASE-SENSITIVE - use them EXACTLY as shown above
+        3. ALWAYS include "FROM {table_name}" in your query
+        4. Use standard SQLite syntax
+
+        QUERY PATTERNS:
+
+        For "most/common/popular [column]":
+        Example: "What is the most used PreferredLoginDevice?"
+        SQL: SELECT PreferredLoginDevice, COUNT(*) as count FROM {table_name} GROUP BY PreferredLoginDevice ORDER BY count DESC LIMIT 1
+
+        For "most [column] by [another column]":
+        Example: "What is the most PreferredLoginDevice by Gender?"
+        SQL: SELECT Gender, PreferredLoginDevice, COUNT(*) as count FROM {table_name} GROUP BY Gender, PreferredLoginDevice ORDER BY Gender, count DESC
+
+        For "breakdown/distribution by [column]":
+        Example: "Distribution by Gender"
+        SQL: SELECT Gender, COUNT(*) as count FROM {table_name} GROUP BY Gender
+
+        For "average/mean":
+        Example: "Average Tenure"
+        SQL: SELECT AVG(Tenure) as average FROM {table_name}
+
+        For "top N":
+        Example: "Top 5 by OrderCount"
+        SQL: SELECT * FROM {table_name} ORDER BY OrderCount DESC LIMIT 5
+
+        For "comparison":
+        Example: "Compare satisfaction by MaritalStatus"
+        SQL: SELECT MaritalStatus, AVG(SatisfactionScore) as avg_score FROM {table_name} GROUP BY MaritalStatus
+
+        For "total/count with filter":
+        Example: "How many churned?"
+        SQL: SELECT COUNT(*) as total FROM {table_name} WHERE Churn = 1
+
+        USER QUESTION: {user_query}
+
+        IMPORTANT: Return ONLY the complete SQL query. No explanations, no markdown, no code blocks, just the raw SQL query."""
+            
     try:
         messages = [{"role": "user", "content": prompt}]
+        
+        # Increase max_tokens for complex queries
         response = client.chat_completion(
             messages=messages,
-            max_tokens=300,
+            max_tokens=500,  # Increased from 300
             temperature=0.1
         )
         
-        sql_query = response['choices'][0]['message']['content'].strip()
-        sql_query = sql_query.replace('```sql', '').replace('```', '').strip()
+        # Get the raw response
+        raw_sql = response['choices'][0]['message']['content'].strip()
+        logger.info(f"Raw AI Response: {raw_sql}")
         
-        lines = sql_query.split('\n')
-        for line in lines:
-            line = line.strip()
-            if line.upper().startswith('SELECT'):
-                return line
+        # Clean up the response
+        sql_query = raw_sql
         
-        if sql_query.startswith('SELECT') or sql_query.startswith('select'):
-            return sql_query
-        else:
-            return sql_query
+        # Remove markdown code blocks
+        sql_query = sql_query.replace('```sql', '').replace('```SQL', '').replace('```', '').strip()
+        
+        # Remove any "SQL:" prefix
+        if sql_query.upper().startswith('SQL:'):
+            sql_query = sql_query[4:].strip()
+        
+        # Remove any explanatory text before SELECT
+        if 'SELECT' in sql_query.upper():
+            select_index = sql_query.upper().index('SELECT')
+            sql_query = sql_query[select_index:]
+        
+        # If multiple lines, combine them intelligently
+        lines = [line.strip() for line in sql_query.split('\n') if line.strip()]
+        if len(lines) > 1:
+            # Check if first line is complete
+            first_line_upper = lines[0].upper()
+            if 'SELECT' in first_line_upper and 'FROM' in first_line_upper:
+                # First line is complete, use it
+                sql_query = lines[0]
+            else:
+                # Combine all lines
+                sql_query = ' '.join(lines)
+        
+        # Remove trailing semicolon
+        sql_query = sql_query.rstrip(';').strip()
+        
+        # CRITICAL: Validate and fix missing FROM clause
+        sql_upper = sql_query.upper()
+        if 'SELECT' in sql_upper and 'FROM' not in sql_upper:
+            logger.warning(f"Missing FROM clause in: {sql_query}")
+            
+            # Try to intelligently insert FROM clause
+            # Find insertion point (before WHERE, GROUP BY, ORDER BY, or at end)
+            insert_keywords = ['WHERE', 'GROUP BY', 'HAVING', 'ORDER BY', 'LIMIT']
+            insert_pos = len(sql_query)
+            
+            for keyword in insert_keywords:
+                if keyword in sql_upper:
+                    pos = sql_upper.index(keyword)
+                    if pos < insert_pos:
+                        insert_pos = pos
+            
+            # Insert FROM clause
+            before = sql_query[:insert_pos].strip()
+            after = sql_query[insert_pos:].strip()
+            sql_query = f"{before} FROM {table_name} {after}".strip()
+            
+            logger.info(f"Fixed SQL with FROM clause: {sql_query}")
+        
+        # Final validation
+        if not sql_query.upper().startswith('SELECT'):
+            logger.error(f"Invalid SQL - doesn't start with SELECT: {sql_query}")
+            raise Exception(f"Generated invalid SQL query: {sql_query}")
+        
+        if 'FROM' not in sql_query.upper():
+            logger.error(f"Invalid SQL - missing FROM: {sql_query}")
+            raise Exception(f"Generated SQL missing FROM clause: {sql_query}")
+        
+        logger.info(f"Final SQL Query: {sql_query}")
+        return sql_query
             
     except Exception as e:
         logger.error(f"Error generating SQL query: {e}")
