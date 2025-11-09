@@ -31,6 +31,7 @@ env/
 .LINEKDIN.md
 .TODO.md
 .FILE_LIST.txt
+.PROJECT_SUMMARY.md
 
 # IDEs
 .vscode/

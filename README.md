@@ -379,13 +379,13 @@ docker run -p 8501:8501 vexaai-analyst
 ---
 
 
-## 📄 License
+##  License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-## 👨‍💻 Author
+##  Author
 
 **John Evans Okyere**
 - Company: VexaAI
@@ -394,7 +394,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-## 🙏 Acknowledgments
+##  Acknowledgments
 
 - **Streamlit**: For the amazing web framework
 - **xAI**: For the powerful Grok AI models
@@ -406,14 +406,14 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-## 📞 Support
+##  Support
 
 For issues, questions, or feature requests:
-- 📧 Email: okyerevansjohn@gmail.com
+-  Email: okyerevansjohn@gmail.com
 
 
 
-## 🗺️ Roadmap
+##  Roadmap
 
 ### Version 2.1 (Coming Soon)
 - [ ] Real-time data streaming
@@ -441,4 +441,4 @@ For issues, questions, or feature requests:
 
 **Built with ❤️ by VexaAI | © 2025**
 
-⚡ Lightning fast • 🔒 Privacy first • 🧠 AI-powered • 📊 MLOps-ready
+⚡ Lightning fast •  Privacy first •  AI-powered •  MLOps-ready
