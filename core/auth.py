@@ -289,14 +289,6 @@ def show_login_page():
                 else:
                     st.error("Please enter both username and password")
         
-        with st.expander("🔑 Default Admin Access"):
-            st.markdown("""
-            **Default Admin Credentials:**
-            - Username: 
-            - Password: 
-            
-            **⚠️ Please change the default password after first login!**
-            """)
     
     with tab2:
         st.markdown("### 📝 Create New Account")
