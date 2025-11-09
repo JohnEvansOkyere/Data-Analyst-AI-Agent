@@ -1,4 +1,4 @@
-# 🤖 VexaAI Data Analyst Pro
+#  VexaAI Data Analyst Pro
 
 **Professional Data Science Platform with MLOps Practices**
 
@@ -10,16 +10,16 @@ A comprehensive, production-ready data analysis application with advanced prepro
 
 ---
 
-## 🚀 Features
+##  Features
 
-### 🧹 **Advanced Data Cleaning**
+###  **Advanced Data Cleaning**
 - **9 Missing Data Strategies**: Drop, fill (mean/median/mode), forward/backward fill, interpolation
 - **3 Outlier Detection Methods**: IQR, Z-score, Isolation Forest
 - **Duplicate Removal**: Flexible duplicate handling
 - **Text Cleaning**: Lowercase, whitespace, special character removal
 - **Data Type Conversion**: Automated and manual type conversion
 
-### ⚙️ **Feature Engineering**
+###  **Feature Engineering**
 - **Polynomial Features**: Create higher-order features
 - **Interaction Features**: Generate feature interactions (multiply, divide, add, subtract)
 - **Mathematical Transformations**: Log, sqrt, power transforms
@@ -28,39 +28,39 @@ A comprehensive, production-ready data analysis application with advanced prepro
 - **Aggregation Features**: Group-by aggregations
 - **Rolling Window Features**: Time-series rolling statistics
 
-### 📈 **Advanced Analytics**
+###  **Advanced Analytics**
 - **Statistical Tests**: T-tests, ANOVA, Chi-square, normality tests
 - **Correlation Analysis**: Pearson, Spearman, Kendall correlations
 - **Multicollinearity Detection**: VIF calculations
 - **Summary Statistics**: Comprehensive data profiling
 
-### 🤖 **AI-Powered Insights**
+###  **AI-Powered Insights**
 - **Natural Language Queries**: Ask questions in plain English
 - **Automatic SQL Generation**: Powered by Grok AI
 - **Intelligent Insights**: AI-generated interpretations
 - **Multiple AI Models**: Grok-4, Grok-2, Grok-Beta, Grok-Vision
 
-### 💾 **Data Management (Supabase)**
+###  **Data Management (Supabase)**
 - **Dataset Versioning**: Track all data transformations
 - **Analysis History**: Save and retrieve past analyses
 - **Audit Logging**: Complete activity tracking
 - **Data Quality Reports**: Automated quality assessments
 - **Multi-format Export**: CSV, Excel, Parquet, JSON, Feather
 
-### 📊 **Interactive Visualizations**
+###  **Interactive Visualizations**
 - **Auto-generated Charts**: Histograms, scatter plots, box plots, heatmaps
 - **Custom Visualizations**: Build your own charts
 - **Interactive Plots**: Powered by Plotly
 - **Export Capabilities**: Download charts and reports
 
-### 🔐 **Security & Authentication**
+###  **Security & Authentication**
 - **User Management**: Admin panel for user control
 - **Role-based Access**: Admin and user roles
 - **Password Protection**: SHA-256 hashed passwords
 - **Session Management**: Secure session handling
 - **Audit Trails**: Complete activity logging
 
-### 📊 **MLOps Features**
+###  **MLOps Features**
 - **Comprehensive Logging**: Application, error, performance, audit logs
 - **Performance Monitoring**: Track operation durations
 - **Data Versioning**: Version control for datasets
@@ -69,19 +69,19 @@ A comprehensive, production-ready data analysis application with advanced prepro
 
 ---
 
-## 📁 Project Structure
+##  Project Structure
 
 ```
 VexaAI_Data_Analyst_Pro/
 ├── Home.py                          # Main application entry point
 ├── pages/                           # Streamlit pages
-│   ├── 1_📂_Data_Upload.py         # Data upload and preview
-│   ├── 2_🧹_Data_Cleaning.py       # Data cleaning and preprocessing
-│   ├── 3_📈_Analysis_Insights.py   # Statistical analysis and AI queries
-│   ├── 4_📊_Visualizations.py      # Interactive visualizations
-│   ├── 5_🎛️_Dashboard.py           # Comprehensive dashboard
-│   ├── 6_📁_Data_History.py        # Dataset history and versioning
-│   └── 7_🔐_Admin_Panel.py         # User management
+│   ├── 1_Data_Upload.py         # Data upload and preview
+│   ├── 2_Data_Cleaning.py       # Data cleaning and preprocessing
+│   ├── 3_Analysis_Insights.py   # Statistical analysis and AI queries
+│   ├── 4_Visualizations.py      # Interactive visualizations
+│   ├── 5_Dashboard.py           # Comprehensive dashboard
+│   ├── 6_Data_History.py        # Dataset history and versioning
+│   └── 7_Admin_Panel.py         # User management
 ├── core/                            # Core business logic
 │   ├── ml_engine.py                 # Grok AI integration
 │   ├── auth.py                      # Authentication system
@@ -106,7 +106,7 @@ VexaAI_Data_Analyst_Pro/
 
 ---
 
-## 🛠️ Installation
+##  Installation
 
 ### Prerequisites
 - Python 3.9 or higher
@@ -164,13 +164,13 @@ The application will open in your default browser at `http://localhost:8501`
 
 ---
 
-## 🎯 Quick Start Guide
+##  Quick Start Guide
 
 ### 1. **First Login**
 - Default credentials:
   - Username: `admin`
   - Password: `admin123`
-- **⚠️ Change the password immediately after first login!**
+- ** Change the password immediately after first login!**
 
 ### 2. **Configure API Keys**
 - Navigate to any page
@@ -178,12 +178,12 @@ The application will open in your default browser at `http://localhost:8501`
 - (Optional) Configure Supabase credentials
 
 ### 3. **Upload Data**
-- Go to "📂 Data Upload" page
+- Go to " Data Upload" page
 - Upload CSV or Excel file (up to 200MB)
 - View data preview and quality metrics
 
 ### 4. **Clean Your Data**
-- Navigate to "🧹 Data Cleaning" page
+- Navigate to " Data Cleaning" page
 - Choose preprocessing operations:
   - Handle missing values
   - Remove duplicates and outliers
@@ -192,11 +192,11 @@ The application will open in your default browser at `http://localhost:8501`
   - Engineer new features
 
 ### 5. **Analyze & Visualize**
-- Use "📈 Analysis & Insights" for:
+- Use " Analysis & Insights" for:
   - AI-powered natural language queries
   - Statistical tests
   - Correlation analysis
-- Explore "📊 Visualizations" for:
+- Explore " Visualizations" for:
   - Interactive charts
   - Custom visualizations
   - Data distributions
@@ -209,7 +209,7 @@ The application will open in your default browser at `http://localhost:8501`
 
 ---
 
-## 📖 User Guide
+##  User Guide
 
 ### Data Upload
 1. Click "Browse files" or drag and drop
@@ -288,7 +288,7 @@ The system will:
 
 ---
 
-## 🔧 Configuration
+##  Configuration
 
 ### Application Settings
 Edit `config/settings.py` to customize:
@@ -310,7 +310,7 @@ LOG_LEVEL=INFO
 
 ---
 
-## 📊 Data Quality Scoring
+##  Data Quality Scoring
 
 The system automatically calculates a data quality score based on:
 - **Completeness** (60% weight): Percentage of non-missing values
@@ -324,7 +324,7 @@ The system automatically calculates a data quality score based on:
 
 ---
 
-## 🔐 User Management
+##  User Management
 
 ### Admin Functions
 - Add new users
@@ -339,7 +339,7 @@ The system automatically calculates a data quality score based on:
 
 ---
 
-## 📝 Logging
+##  Logging
 
 The application maintains comprehensive logs:
 
@@ -356,7 +356,7 @@ The application maintains comprehensive logs:
 
 ---
 
-## 🚀 Deployment
+##  Deployment
 
 ### Local Development
 ```bash
@@ -376,26 +376,8 @@ streamlit run Home.py
 docker build -t vexaai-analyst .
 docker run -p 8501:8501 vexaai-analyst
 ```
-
-#### Cloud Platforms
-- AWS EC2/ECS
-- Google Cloud Run
-- Azure App Service
-- Heroku
-
 ---
 
-## 🤝 Contributing
-
-Contributions are welcome! Please follow these steps:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
----
 
 ## 📄 License
 
@@ -407,8 +389,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **John Evans Okyere**
 - Company: VexaAI
-- GitHub: [@yourusername](https://github.com/yourusername)
-- LinkedIn: [Your LinkedIn](https://linkedin.com/in/yourprofile)
+- GitHub: [JohnEVvansOkyere](https://github.com/JohnEvansOkyere)
+- LinkedIn: [John Evans Okyere](https://www.linkedin.com/in/john-evans-okyere/)
 
 ---
 
@@ -420,17 +402,16 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Plotly**: For interactive visualizations
 - **scikit-learn**: For machine learning tools
 - **pandas**: For data manipulation
+- **Claudeai** : For coding assistance
 
 ---
 
 ## 📞 Support
 
 For issues, questions, or feature requests:
-- 📧 Email: support@vexaai.com
-- 🐛 GitHub Issues: [Report a bug](https://github.com/yourusername/vexaai-data-analyst-pro/issues)
-- 💬 Discussions: [Join the discussion](https://github.com/yourusername/vexaai-data-analyst-pro/discussions)
+- 📧 Email: okyerevansjohn@gmail.com
 
----
+
 
 ## 🗺️ Roadmap
 

@@ -1,0 +1,50 @@
+VexaAI Data Analyst Pro - File Structure
+======================================================================
+
+📁 FOLDERS:
+   pages/ - Streamlit pages (multi-page app)
+   core/ - Business logic and main functionality
+   database/ - Supabase database integration
+   utils/ - Utility functions and helpers
+   config/ - Configuration and settings
+   models/ - Data models (optional)
+   docs/ - Documentation files
+   logs/ - Application logs (auto-generated)
+   data/ - Data storage (user uploads)
+   temp/ - Temporary files
+
+📄 FILES TO COMPLETE:
+   Home.py - Main Streamlit app entry point
+   requirements.txt - Python dependencies
+   README.md - Project documentation
+   QUICK_START.md - 5-minute setup guide
+   PROJECT_SUMMARY.md - Project overview
+   TODO.md - Tasks to complete
+   START_HERE.md - Getting started guide
+   .env.example - Environment variables template
+   .gitignore - Git ignore rules
+   LICENSE - MIT License
+   pages/__init__.py
+   pages/1_📂_Data_Upload.py - Data upload and preview page
+   pages/2_🧹_Data_Cleaning.py - Data cleaning operations page
+   pages/3_📈_Analysis_Insights.py - Analysis and AI queries page
+   pages/4_📊_Visualizations.py - Interactive visualizations page
+   pages/5_🎛️_Dashboard.py - Main dashboard page
+   pages/6_📁_Data_History.py - Dataset history and versioning
+   pages/7_🔐_Admin_Panel.py - Admin user management
+   core/__init__.py
+   core/ml_engine.py - Grok AI integration and SQL generation
+   core/auth.py - Authentication and user management
+   core/data_cleaning.py - Data cleaning operations (15+ techniques)
+   core/feature_engineering.py - Feature engineering (20+ operations)
+   core/data_analysis.py - Statistical analysis and tests
+   database/__init__.py
+   database/supabase_manager.py - Supabase database operations
+   utils/__init__.py
+   utils/logger.py - MLOps logging system
+   utils/helpers.py - Helper utility functions
+   config/__init__.py
+   config/settings.py - Application configuration
+   models/__init__.py
+   docs/SETUP_GUIDE.md - Detailed setup instructions
+   docs/supabase_schema.sql - Database schema for Supabase

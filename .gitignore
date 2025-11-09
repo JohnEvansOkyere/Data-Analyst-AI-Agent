@@ -25,6 +25,13 @@ venv/
 ENV/
 env/
 
+.FUTURE_UPDATES.md
+.START_HERE.md
+.QUICK_START.md
+.LINEKDIN.md
+.TODO.md
+.FILE_LIST.txt
+
 # IDEs
 .vscode/
 .idea/
