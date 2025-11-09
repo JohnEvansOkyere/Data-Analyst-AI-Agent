@@ -19,7 +19,7 @@ class SupabaseManager:
     """Manager class for Supabase operations"""
     
     def __init__(self):
-        """Initialize Supabase client"""
+        """Initialize Supabase client from environment variables"""
         self.url = SUPABASE_URL
         self.key = SUPABASE_KEY
         self.client: Optional[Client] = None
@@ -30,11 +30,12 @@ class SupabaseManager:
         try:
             if self.url and self.key:
                 self.client = create_client(self.url, self.key)
-                logger.info("Supabase client initialized successfully")
+                logger.info("✅ Supabase client initialized successfully")
             else:
-                logger.warning("Supabase credentials not provided")
+                logger.warning("⚠️ Supabase credentials not found in environment")
+                self.client = None
         except Exception as e:
-            logger.error(f"Failed to initialize Supabase client: {e}")
+            logger.error(f"❌ Failed to initialize Supabase client: {e}")
             self.client = None
     
     def is_connected(self) -> bool:
@@ -67,23 +68,25 @@ class SupabaseManager:
                 "file_size": file_size,
                 "rows": rows,
                 "columns": columns,
-                "column_info": json.dumps(column_info),
-                "metadata": json.dumps(metadata or {}),
+                "column_info": column_info,  # Already a dict, don't JSON stringify
+                "metadata": metadata or {},
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat()
             }
             
-            response = self.client.table(DB_TABLES["datasets"]).insert(data).execute()
+            logger.info(f"Attempting to save dataset: {dataset_name}")
+            response = self.client.table("datasets").insert(data).execute()
             
-            if response.data:
+            if response.data and len(response.data) > 0:
                 dataset_id = response.data[0]["id"]
-                logger.info(f"Dataset saved successfully: {dataset_id}")
+                logger.info(f"✅ Dataset saved successfully: {dataset_id}")
                 return dataset_id
-            
-            return None
+            else:
+                logger.error(f"❌ No data returned from Supabase insert")
+                return None
             
         except Exception as e:
-            logger.error(f"Error saving dataset: {e}")
+            logger.error(f"❌ Error saving dataset: {e}")
             return None
     
     def get_user_datasets(self, user_id: str, limit: int = 50) -> List[Dict]:
@@ -93,7 +96,7 @@ class SupabaseManager:
                 return []
             
             response = (
-                self.client.table(DB_TABLES["datasets"])
+                self.client.table("datasets")
                 .select("*")
                 .eq("user_id", user_id)
                 .order("created_at", desc=True)
@@ -114,7 +117,7 @@ class SupabaseManager:
                 return None
             
             response = (
-                self.client.table(DB_TABLES["datasets"])
+                self.client.table("datasets")
                 .select("*")
                 .eq("id", dataset_id)
                 .single()
@@ -133,7 +136,7 @@ class SupabaseManager:
             if not self.client:
                 return False
             
-            self.client.table(DB_TABLES["datasets"]).delete().eq("id", dataset_id).execute()
+            self.client.table("datasets").delete().eq("id", dataset_id).execute()
             logger.info(f"Dataset deleted: {dataset_id}")
             return True
             
@@ -164,20 +167,20 @@ class SupabaseManager:
                 "dataset_id": dataset_id,
                 "version_number": version_number,
                 "operation_type": operation_type,
-                "operations_applied": json.dumps(operations_applied),
+                "operations_applied": operations_applied,  # Already a list
                 "rows_before": rows_before,
                 "rows_after": rows_after,
                 "columns_before": columns_before,
                 "columns_after": columns_after,
-                "metadata": json.dumps(metadata or {}),
+                "metadata": metadata or {},
                 "created_at": datetime.utcnow().isoformat()
             }
             
-            response = self.client.table(DB_TABLES["data_versions"]).insert(data).execute()
+            response = self.client.table("data_versions").insert(data).execute()
             
-            if response.data:
+            if response.data and len(response.data) > 0:
                 version_id = response.data[0]["id"]
-                logger.info(f"Data version saved: {version_id}")
+                logger.info(f"✅ Data version saved: {version_id}")
                 return version_id
             
             return None
@@ -193,7 +196,7 @@ class SupabaseManager:
                 return []
             
             response = (
-                self.client.table(DB_TABLES["data_versions"])
+                self.client.table("data_versions")
                 .select("*")
                 .eq("dataset_id", dataset_id)
                 .order("version_number", desc=True)
@@ -234,11 +237,11 @@ class SupabaseManager:
                 "created_at": datetime.utcnow().isoformat()
             }
             
-            response = self.client.table(DB_TABLES["analysis_history"]).insert(data).execute()
+            response = self.client.table("analysis_history").insert(data).execute()
             
-            if response.data:
+            if response.data and len(response.data) > 0:
                 analysis_id = response.data[0]["id"]
-                logger.info(f"Analysis saved: {analysis_id}")
+                logger.info(f"✅ Analysis saved: {analysis_id}")
                 return analysis_id
             
             return None
@@ -254,7 +257,7 @@ class SupabaseManager:
                 return []
             
             response = (
-                self.client.table(DB_TABLES["analysis_history"])
+                self.client.table("analysis_history")
                 .select("*")
                 .eq("user_id", user_id)
                 .order("created_at", desc=True)
@@ -286,13 +289,13 @@ class SupabaseManager:
                 "user_id": user_id,
                 "activity_type": activity_type,
                 "description": description,
-                "metadata": json.dumps(metadata or {}),
+                "metadata": metadata or {},
                 "timestamp": datetime.utcnow().isoformat()
             }
             
-            response = self.client.table(DB_TABLES["audit_logs"]).insert(data).execute()
+            response = self.client.table("audit_logs").insert(data).execute()
             
-            if response.data:
+            if response.data and len(response.data) > 0:
                 log_id = response.data[0]["id"]
                 return log_id
             
@@ -309,7 +312,7 @@ class SupabaseManager:
                 return []
             
             response = (
-                self.client.table(DB_TABLES["audit_logs"])
+                self.client.table("audit_logs")
                 .select("*")
                 .eq("user_id", user_id)
                 .order("timestamp", desc=True)
@@ -338,16 +341,16 @@ class SupabaseManager:
             
             data = {
                 "dataset_id": dataset_id,
-                "report_data": json.dumps(report_data),
+                "report_data": report_data,  # Already a dict
                 "quality_score": quality_score,
                 "created_at": datetime.utcnow().isoformat()
             }
             
-            response = self.client.table(DB_TABLES["data_quality_reports"]).insert(data).execute()
+            response = self.client.table("data_quality_reports").insert(data).execute()
             
-            if response.data:
+            if response.data and len(response.data) > 0:
                 report_id = response.data[0]["id"]
-                logger.info(f"Data quality report saved: {report_id}")
+                logger.info(f"✅ Data quality report saved: {report_id}")
                 return report_id
             
             return None
@@ -363,7 +366,7 @@ class SupabaseManager:
                 return None
             
             response = (
-                self.client.table(DB_TABLES["data_quality_reports"])
+                self.client.table("data_quality_reports")
                 .select("*")
                 .eq("dataset_id", dataset_id)
                 .order("created_at", desc=True)

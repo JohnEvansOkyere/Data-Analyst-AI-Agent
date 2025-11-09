@@ -6,6 +6,10 @@ Centralized configuration management for the application
 import os
 from pathlib import Path
 from typing import Dict, Any
+from dotenv import load_dotenv
+
+
+load_dotenv()
 
 # Base directories
 BASE_DIR = Path(__file__).resolve().parent.parent

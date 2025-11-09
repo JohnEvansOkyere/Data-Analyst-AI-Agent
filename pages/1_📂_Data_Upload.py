@@ -14,87 +14,26 @@ from core.ml_engine import preprocess_and_save, get_quick_stats
 from database.supabase_manager import get_supabase_manager
 from utils.helpers import get_column_info, calculate_data_quality_score, format_file_size
 from utils.logger import get_logger, audit_logger
+from utils.ui_components import apply_modern_css, render_page_header, render_section_header  # NEW!
 
 logger = get_logger(__name__)
 
 st.set_page_config(page_title="Data Upload", page_icon="📂", layout="wide")
 
-# Custom CSS
-st.markdown("""
-<style>
-    .upload-box {
-        border: 2px dashed #667eea;
-        border-radius: 10px;
-        padding: 2rem;
-        text-align: center;
-        background: #f8f9ff;
-    }
-    .success-box {
-        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-        color: white;
-        padding: 1rem;
-        border-radius: 8px;
-        margin: 1rem 0;
-    }
-</style>
-""", unsafe_allow_html=True)
-
 def main():
     if not check_authentication():
         return
     
-    st.title("📂 Data Upload & Preview")
-    st.markdown("Upload your CSV or Excel file to get started")
+    # Apply modern CSS
+    apply_modern_css()  # NEW!
     
-    # Sidebar - API Configuration
-    with st.sidebar:
-        st.markdown("### ⚙️ Configuration")
-        
-        st.markdown("**🔑 xAI API Key**")
-        with st.expander("📝 Get xAI API Key"):
-            st.markdown("""
-            1. Visit [console.x.ai](https://console.x.ai)
-            2. Sign up/Login
-            3. Create API Key
-            4. Copy and paste below
-            """)
-        
-        xai_key = st.text_input(
-            "Enter your xAI API key",
-            type="password",
-            placeholder="xai-...",
-            key="xai_key_input"
-        )
-        
-        if xai_key:
-            st.session_state.groq_key = xai_key
-            st.success("✅ API key configured!")
-        else:
-            st.warning("⚠️ API key required")
-        
-        if "groq_key" in st.session_state:
-            st.markdown("**🧠 AI Model**")
-            model_choice = st.selectbox(
-                "Choose Model:",
-                [
-                    "grok-4-fast-reasoning",
-                    "grok-2-1212",
-                    "grok-beta",
-                    "grok-vision-beta"
-                ]
-            )
-            st.session_state.selected_model = model_choice
-        
-        # Supabase configuration
-        st.markdown("---")
-        st.markdown("**💾 Supabase Configuration**")
-        with st.expander("🔧 Configure Supabase"):
-            supabase_url = st.text_input("Supabase URL", type="password")
-            supabase_key = st.text_input("Supabase Key", type="password")
-            if supabase_url and supabase_key:
-                st.session_state.supabase_url = supabase_url
-                st.session_state.supabase_key = supabase_key
-                st.success("Supabase configured!")
+    # Modern page header
+    render_page_header(
+        title="Data Upload & Preview",
+        subtitle="Upload your CSV or Excel file to get started",
+        icon="📂"
+    )  # NEW!
+    
     
     # Main content
     col1, col2 = st.columns([2, 1])

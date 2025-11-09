@@ -14,6 +14,7 @@ from core.data_cleaning import DataCleaner, DataScaler, DataEncoder
 from core.feature_engineering import FeatureEngineer
 from utils.helpers import export_dataframe
 from utils.logger import get_logger
+from utils.ui_components import apply_modern_css, render_page_header, render_section_header  # NEW!
 
 logger = get_logger(__name__)
 
@@ -23,6 +24,17 @@ def main():
     if not check_authentication():
         return
     
+       # Apply modern CSS
+    apply_modern_css()
+    
+    # Modern page header
+    render_page_header(
+        title="Data Cleaning & Preprocessing",
+        subtitle="Transform your data with advanced preprocessing techniques",
+        icon="🧹"
+    )
+    
+
     st.title("🧹 Data Cleaning & Preprocessing")
     
     if 'df' not in st.session_state:
