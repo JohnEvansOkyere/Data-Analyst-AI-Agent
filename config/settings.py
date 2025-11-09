@@ -1,14 +1,16 @@
 """
 VexaAI Data Analyst - Configuration Settings
 Centralized configuration management for the application
+Works both locally (.env) and on Streamlit Cloud (secrets)
 """
 
 import os
+import streamlit as st
 from pathlib import Path
 from typing import Dict, Any
 from dotenv import load_dotenv
 
-
+# Load environment variables from .env file (for local development)
 load_dotenv()
 
 # Base directories
@@ -28,10 +30,26 @@ APP_VERSION = "2.0.0"
 APP_AUTHOR = "John Evans Okyere"
 APP_COMPANY = "VexaAI"
 
-# Supabase Configuration
-SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY", "")
-SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+# ==================== HELPER FUNCTION FOR SECRETS ====================
+def get_secret(key: str, default: str = "") -> str:
+    """
+    Get secret from Streamlit secrets (cloud) or environment variables (local)
+    This allows the app to work in both environments seamlessly
+    """
+    try:
+        # Try Streamlit secrets first (for cloud deployment)
+        if hasattr(st, 'secrets') and key in st.secrets:
+            return st.secrets[key]
+    except Exception:
+        pass
+    
+    # Fall back to environment variables (for local development)
+    return os.getenv(key, default)
+
+# ==================== SUPABASE CONFIGURATION ====================
+SUPABASE_URL = get_secret("SUPABASE_URL", "")
+SUPABASE_KEY = get_secret("SUPABASE_ANON_KEY", "")
+SUPABASE_SERVICE_ROLE_KEY = get_secret("SUPABASE_SERVICE_ROLE_KEY", "")
 
 # xAI Grok Configuration
 XAI_BASE_URL = "https://api.x.ai/v1"
@@ -233,7 +251,8 @@ def get_config() -> Dict[str, Any]:
         },
         "supabase": {
             "url": SUPABASE_URL,
-            "key": SUPABASE_KEY
+            "key": SUPABASE_KEY,
+            "service_role_key": SUPABASE_SERVICE_ROLE_KEY
         },
         "xai": {
             "base_url": XAI_BASE_URL,
