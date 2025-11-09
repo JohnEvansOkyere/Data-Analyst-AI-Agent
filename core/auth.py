@@ -292,8 +292,8 @@ def show_login_page():
         with st.expander("🔑 Default Admin Access"):
             st.markdown("""
             **Default Admin Credentials:**
-            - Username: `admin`
-            - Password: `admin123`
+            - Username: 
+            - Password: 
             
             **⚠️ Please change the default password after first login!**
             """)
