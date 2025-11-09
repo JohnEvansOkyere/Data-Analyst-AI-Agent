@@ -355,6 +355,17 @@ def main():
     if not check_authentication():
         return
     
+    # Auto-initialize AI from .env (runs once)
+    if 'ai_auto_initialized' not in st.session_state:
+        from config.ai_config import initialize_ai_from_env
+        init_result = initialize_ai_from_env()
+        st.session_state['ai_auto_initialized'] = True
+        
+        # Show notification if providers were loaded
+        if init_result['has_providers']:
+            with st.sidebar:
+                st.success(f"✅ AI Ready: {len(init_result['initialized'])} provider(s) from .env")
+
     # Header
     st.markdown(f"""
     <div class="main-header">

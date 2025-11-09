@@ -51,15 +51,30 @@ SUPABASE_URL = get_secret("SUPABASE_URL", "")
 SUPABASE_KEY = get_secret("SUPABASE_ANON_KEY", "")
 SUPABASE_SERVICE_ROLE_KEY = get_secret("SUPABASE_SERVICE_ROLE_KEY", "")
 
-# xAI Grok Configuration
-XAI_BASE_URL = "https://api.x.ai/v1"
-XAI_MODELS = [
-    "grok-4-fast-reasoning",
-    "grok-2-1212",
-    "grok-beta",
-    "grok-vision-beta"
-]
-DEFAULT_XAI_MODEL = "grok-4-fast-reasoning"
+
+# AI Model API Keys
+XAI_API_KEY = os.getenv("XAI_API_KEY", "")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+
+# AI Model Configuration
+AI_PROVIDERS = {
+    "xai": {
+        "name": "xAI Grok",
+        "models": ["grok-2-1212", "grok-2-vision-1212", "grok-beta"],
+        "default_model": "grok-2-1212"
+    },
+    "groq": {
+        "name": "Groq",
+        "models": ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "mixtral-8x7b-32768"],
+        "default_model": "llama-3.3-70b-versatile"
+    },
+    "gemini": {
+        "name": "Google Gemini",
+        "models": ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"],
+        "default_model": "gemini-1.5-flash"
+    }
+}
 
 # Data Processing Configuration
 MAX_FILE_SIZE_MB = 200

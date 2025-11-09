@@ -21,6 +21,30 @@ logger = get_logger(__name__)
 
 st.set_page_config(page_title="Analysis & Insights", page_icon="📈", layout="wide")
 
+"""
+Analysis & Insights Page - AI Queries and Statistical Tests
+"""
+
+import streamlit as st
+import pandas as pd
+import sys
+from pathlib import Path
+import time
+from datetime import datetime
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from core.auth import check_authentication
+from core.ml_engine import generate_sql_query, execute_query, interpret_results
+from core.ai_client import get_unified_client
+from core.data_analysis import DataAnalyzer
+from utils.logger import get_logger, audit_logger
+from utils.ai_sidebar import render_ai_sidebar, check_ai_configured  
+
+logger = get_logger(__name__)
+
+st.set_page_config(page_title="Analysis & Insights", page_icon="📈", layout="wide")
+
 def main():
     if not check_authentication():
         return
@@ -28,24 +52,20 @@ def main():
     st.title("📈 Analysis & Insights")
     st.markdown("Ask questions in natural language or run statistical tests")
     
+    # Render AI sidebar
+    ai_ready = render_ai_sidebar()
+    
+    # Check if data is loaded
     if 'df' not in st.session_state:
         st.warning("⚠️ Please upload data first!")
-        st.info("Go to '📂 Data Upload' page to upload your dataset")
+        st.info("👈 Go to '📂 Data Upload' page to upload your dataset")
         return
     
     df = st.session_state.df
     
-    # Check for API key
-    if 'groq_key' not in st.session_state:
-        st.error("🔑 Please enter your xAI API key in the sidebar first!")
-        with st.sidebar:
-            st.markdown("### 🔑 xAI API Key")
-            xai_key = st.text_input("Enter API key", type="password", placeholder="xai-...")
-            if xai_key:
-                st.session_state.groq_key = xai_key
-                st.success("✅ API key set!")
-                st.rerun()
-        return
+    # Check if AI is configured
+    if not ai_ready:
+        st.info("👈 Please configure AI in the sidebar to use AI features")
     
     # Tabs for different analysis types
     tab1, tab2, tab3 = st.tabs(["🤖 AI Queries", "📊 Statistical Tests", "🔗 Correlations"])
@@ -54,37 +74,19 @@ def main():
     with tab1:
         st.markdown("### 🤖 Ask Questions About Your Data")
         
-        # Quick action buttons
-        st.markdown("**Quick Actions:**")
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            if st.button("📊 Summary", key="summary"):
-                st.session_state.quick_query = "Show me summary statistics"
-        with col2:
-            if st.button("🏆 Top 10", key="top10"):
-                st.session_state.quick_query = "Show me the top 10 records"
-        with col3:
-            if st.button("🔍 Data Info", key="info"):
-                st.session_state.quick_query = "What columns do I have?"
-        with col4:
-            if st.button("📈 Trends", key="trends"):
-                st.session_state.quick_query = "Show me any interesting trends"
+        if not ai_ready:
+            st.warning("⚠️ AI not configured. Please add your API key in the sidebar.")
+            return
         
         # Query input
         user_query = st.text_area(
             "Enter your question:",
-            value=st.session_state.get('quick_query', ''),
-            placeholder="e.g., What are the top 5 products by sales?",
-            height=100,
-            key="query_input"
+            placeholder="e.g., What is the most used PreferredLoginDevice by Gender?",
+            height=100
         )
         
-        if 'quick_query' in st.session_state:
-            del st.session_state.quick_query
-        
         # Analyze button
-        if st.button("🚀 Analyze with Grok AI", type="primary", use_container_width=True):
+        if st.button("🚀 Analyze with AI", type="primary", use_container_width=True):
             if not user_query.strip():
                 st.warning("Please enter a question!")
             else:
@@ -92,7 +94,10 @@ def main():
                 
                 with st.spinner("🧠 Generating SQL query..."):
                     try:
-                        client = GroqClient(st.session_state.groq_key)
+                        # Get unified client
+                        client = get_unified_client()
+                        
+                        # Generate SQL
                         sql_query = generate_sql_query(
                             user_query,
                             df.columns.tolist(),
@@ -100,7 +105,7 @@ def main():
                             client
                         )
                     except Exception as e:
-                        st.error(f"Error: {e}")
+                        st.error(f"❌ Error generating SQL: {e}")
                         return
                 
                 if sql_query:
@@ -111,7 +116,7 @@ def main():
                         try:
                             results = execute_query(df, sql_query)
                         except Exception as e:
-                            st.error(f"Query error: {e}")
+                            st.error(f"❌ Query error: {e}")
                             return
                     
                     if results is not None and len(results) > 0:
@@ -156,6 +161,8 @@ def main():
                         )
                     else:
                         st.warning("No results returned")
+    
+
     
     # ==================== STATISTICAL TESTS TAB ====================
     with tab2:

@@ -38,40 +38,40 @@ def main():
     with st.sidebar:
         st.markdown("### ⚙️ Configuration")
         
-        st.markdown("**🔑 xAI API Key**")
-        with st.expander("📝 Get xAI API Key"):
-            st.markdown("""
-            1. Visit [console.x.ai](https://console.x.ai)
-            2. Sign up/Login
-            3. Create API Key
-            4. Copy and paste below
-            """)
+        # st.markdown("**🔑 xAI API Key**")
+        # with st.expander("📝 Get xAI API Key"):
+        #     st.markdown("""
+        #     1. Visit [console.x.ai](https://console.x.ai)
+        #     2. Sign up/Login
+        #     3. Create API Key
+        #     4. Copy and paste below
+        #     """)
         
-        xai_key = st.text_input(
-            "Enter your xAI API key",
-            type="password",
-            placeholder="xai-...",
-            key="xai_key_input"
-        )
+        # xai_key = st.text_input(
+        #     "Enter your xAI API key",
+        #     type="password",
+        #     placeholder="xai-...",
+        #     key="xai_key_input"
+        # )
         
-        if xai_key:
-            st.session_state.groq_key = xai_key
-            st.success("✅ API key configured!")
-        else:
-            st.warning("⚠️ API key required for AI features")
+        # if xai_key:
+        #     st.session_state.groq_key = xai_key
+        #     st.success("✅ API key configured!")
+        # else:
+        #     st.warning("⚠️ API key required for AI features")
         
-        if "groq_key" in st.session_state:
-            st.markdown("**🧠 AI Model**")
-            model_choice = st.selectbox(
-                "Choose Model:",
-                [
-                    "grok-4-fast-reasoning",
-                    "grok-2-1212",
-                    "grok-beta",
-                    "grok-vision-beta"
-                ]
-            )
-            st.session_state.selected_model = model_choice
+        # if "groq_key" in st.session_state:
+        #     st.markdown("**🧠 AI Model**")
+        #     model_choice = st.selectbox(
+        #         "Choose Model:",
+        #         [
+        #             "grok-4-fast-reasoning",
+        #             "grok-2-1212",
+        #             "grok-beta",
+        #             "grok-vision-beta"
+        #         ]
+        #     )
+        #     st.session_state.selected_model = model_choice
         
         # Supabase status indicator
         st.markdown("---")
