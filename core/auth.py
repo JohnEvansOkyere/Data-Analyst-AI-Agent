@@ -289,6 +289,7 @@ def show_login_page():
                 else:
                     st.error("Please enter both username and password")
         
+
     
     with tab2:
         st.markdown("### 📝 Create New Account")
