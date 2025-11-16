@@ -56,13 +56,23 @@ def initialize_ai_client():
     """Initialize AI client with available API keys from environment"""
     client = get_unified_client()
 
-    # Try to initialize available providers
+    # Try to initialize available providers in priority order: XAI > GROQ > GEMINI
+    xai_key = os.getenv("XAI_API_KEY")
     groq_key = os.getenv("GROQ_API_KEY")
     gemini_key = os.getenv("GEMINI_API_KEY")
-    xai_key = os.getenv("XAI_API_KEY")
 
     providers_initialized = []
 
+    # Priority 1: xAI (Grok)
+    if xai_key:
+        try:
+            client.add_client("xai", xai_key)
+            providers_initialized.append("xai")
+            logger.info("✅ xAI (Grok) client initialized from environment")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to initialize xAI: {e}")
+
+    # Priority 2: Groq
     if groq_key:
         try:
             client.add_client("groq", groq_key)
@@ -71,6 +81,7 @@ def initialize_ai_client():
         except Exception as e:
             logger.warning(f"⚠️ Failed to initialize Groq: {e}")
 
+    # Priority 3: Gemini
     if gemini_key:
         try:
             client.add_client("gemini", gemini_key)
@@ -79,15 +90,7 @@ def initialize_ai_client():
         except Exception as e:
             logger.warning(f"⚠️ Failed to initialize Gemini: {e}")
 
-    if xai_key:
-        try:
-            client.add_client("xai", xai_key)
-            providers_initialized.append("xai")
-            logger.info("✅ xAI client initialized from environment")
-        except Exception as e:
-            logger.warning(f"⚠️ Failed to initialize xAI: {e}")
-
-    # Set active provider (prefer Groq > Gemini > xAI)
+    # Set active provider (prefer XAI > Groq > Gemini)
     if providers_initialized:
         active = providers_initialized[0]  # First available
         client.set_active_provider(active)
@@ -301,7 +304,20 @@ async def get_datasets(payload: Dict = Depends(verify_token)):
     """Get user datasets"""
     try:
         datasets = db_manager.get_user_datasets(payload['username'])
-        return {"datasets": datasets}
+        # Transform datasets to match frontend expectations
+        transformed_datasets = []
+        for ds in datasets:
+            transformed_datasets.append({
+                "id": ds.get('id'),
+                "dataset_name": ds.get('dataset_name'),
+                "file_name": ds.get('file_name'),
+                "row_count": ds.get('rows'),  # Frontend expects row_count
+                "column_count": ds.get('columns'),  # Frontend expects column_count
+                "file_size": ds.get('file_size'),
+                "created_at": ds.get('created_at'),
+                "column_info": ds.get('column_info', {})
+            })
+        return {"datasets": transformed_datasets}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
