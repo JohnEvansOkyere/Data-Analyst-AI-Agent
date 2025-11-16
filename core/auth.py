@@ -245,6 +245,21 @@ class SupabaseAuthManager:
         user = self.get_user_by_username(username)
         return user.get('role') == 'admin'
 
+    # ==================== API COMPATIBILITY METHODS ====================
+    # These methods provide compatibility with the FastAPI backend
+
+    def verify_credentials(self, username: str, password: str) -> tuple[bool, str]:
+        """
+        Verify user credentials (API compatible version)
+        Returns: (success: bool, message: str)
+        """
+        success, message, user_data = self.authenticate_user(username, password)
+        return success, message
+
+    def get_user(self, username: str) -> dict:
+        """Alias for get_user_by_username (API compatibility)"""
+        return self.get_user_by_username(username)
+
 
 def show_login_page():
     """Show the login page with tabs for login and registration"""

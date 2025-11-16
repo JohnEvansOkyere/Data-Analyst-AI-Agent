@@ -51,6 +51,55 @@ JWT_ALGORITHM = "HS256"
 auth_manager = SupabaseAuthManager()
 db_manager = get_supabase_manager()
 
+# Initialize AI client with available API keys from environment
+def initialize_ai_client():
+    """Initialize AI client with available API keys from environment"""
+    client = get_unified_client()
+
+    # Try to initialize available providers
+    groq_key = os.getenv("GROQ_API_KEY")
+    gemini_key = os.getenv("GEMINI_API_KEY")
+    xai_key = os.getenv("XAI_API_KEY")
+
+    providers_initialized = []
+
+    if groq_key:
+        try:
+            client.add_client("groq", groq_key)
+            providers_initialized.append("groq")
+            logger.info("✅ Groq client initialized from environment")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to initialize Groq: {e}")
+
+    if gemini_key:
+        try:
+            client.add_client("gemini", gemini_key)
+            providers_initialized.append("gemini")
+            logger.info("✅ Gemini client initialized from environment")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to initialize Gemini: {e}")
+
+    if xai_key:
+        try:
+            client.add_client("xai", xai_key)
+            providers_initialized.append("xai")
+            logger.info("✅ xAI client initialized from environment")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to initialize xAI: {e}")
+
+    # Set active provider (prefer Groq > Gemini > xAI)
+    if providers_initialized:
+        active = providers_initialized[0]  # First available
+        client.set_active_provider(active)
+        logger.info(f"✅ Active AI provider set to: {active}")
+    else:
+        logger.warning("⚠️ No AI providers configured. AI features will not work.")
+
+    return client
+
+# Initialize AI client on startup
+ai_client = initialize_ai_client()
+
 # ==================== MODELS ====================
 
 class LoginRequest(BaseModel):
@@ -174,38 +223,64 @@ async def upload_data(
             content = await file.read()
             tmp.write(content)
             tmp_path = tmp.name
-        
-        # Process file
-        class TempFile:
-            def __init__(self, path, filename):
-                self.name = filename
-                self._path = path
-            def seek(self, pos):
-                pass
-        
-        temp_file = TempFile(tmp_path, file.filename)
-        df = preprocess_and_save(temp_file)
-        
-        # Save to Supabase
-        success = db_manager.save_dataset(
+
+        # Read file directly with pandas
+        if file.filename.endswith('.csv'):
+            df = pd.read_csv(tmp_path, encoding='utf-8', na_values=['NA', 'N/A', 'missing'])
+        elif file.filename.endswith('.xlsx'):
+            df = pd.read_excel(tmp_path, na_values=['NA', 'N/A', 'missing'])
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported file format. Please upload CSV or Excel file")
+
+        # Basic preprocessing
+        df.columns = (
+            df.columns.astype(str).str.strip()
+            .str.replace(' ', '_')
+            .str.replace('[^A-Za-z0-9_]', '', regex=True)
+        )
+
+        # Get file stats
+        import os
+        file_size = os.path.getsize(tmp_path)
+
+        # Get column info
+        column_info = {}
+        for col in df.columns:
+            column_info[col] = {
+                "dtype": str(df[col].dtype),
+                "non_null": int(df[col].count()),
+                "null": int(df[col].isnull().sum())
+            }
+
+        # Save full dataset to Supabase
+        # Store full data in metadata (Supabase JSONB can handle large data)
+        dataset_id = db_manager.save_dataset(
             user_id=payload['username'],
             dataset_name=dataset_name,
-            dataframe=df,
-            file_path=tmp_path
+            file_name=file.filename,
+            file_size=file_size,
+            rows=len(df),
+            columns=len(df.columns),
+            column_info=column_info,
+            metadata={
+                "original_filename": file.filename,
+                "data": df.to_dict('records'),  # Store full dataset
+                "columns": df.columns.tolist(),
+                "dtypes": df.dtypes.astype(str).to_dict()
+            }
         )
-        
-        if success:
-            datasets = db_manager.get_user_datasets(payload['username'])
-            latest = datasets[0] if datasets else None
-            
+
+        if dataset_id:
             return {
                 "success": True,
                 "message": "Dataset uploaded successfully",
                 "dataset": {
-                    "id": latest['id'],
-                    "name": latest['dataset_name'],
-                    "rows": latest['row_count'],
-                    "columns": latest['column_count']
+                    "id": dataset_id,
+                    "name": dataset_name,
+                    "rows": len(df),
+                    "columns": len(df.columns),
+                    "filename": file.filename,
+                    "preview": df.head(5).to_dict('records')
                 }
             }
         else:
@@ -232,25 +307,32 @@ async def get_datasets(payload: Dict = Depends(verify_token)):
 
 @app.get("/api/data/dataset/{dataset_id}")
 async def get_dataset(dataset_id: str, payload: Dict = Depends(verify_token)):
-    """Get dataset details"""
+    """Get dataset details with full data"""
     try:
-        df = db_manager.load_dataset(dataset_id)
-        
-        if df is None:
+        dataset = db_manager.get_dataset_by_id(dataset_id)
+
+        if not dataset:
             raise HTTPException(status_code=404, detail="Dataset not found")
-        
-        # Get basic info
-        info = {
-            "rows": len(df),
-            "columns": len(df.columns),
-            "column_names": df.columns.tolist(),
-            "dtypes": df.dtypes.astype(str).to_dict(),
-            "preview": df.head(10).to_dict('records')
+
+        metadata = dataset.get('metadata', {})
+
+        # Return dataset with full data
+        return {
+            "id": dataset.get('id'),
+            "name": dataset.get('dataset_name'),
+            "filename": dataset.get('file_name'),
+            "rows": dataset.get('rows'),
+            "columns": dataset.get('columns'),
+            "column_info": dataset.get('column_info', {}),
+            "created_at": dataset.get('created_at'),
+            "file_size": dataset.get('file_size'),
+            "data": metadata.get('data', []),  # Full dataset
+            "column_names": metadata.get('columns', []),
+            "dtypes": metadata.get('dtypes', {})
         }
-        
-        return info
-        
+
     except Exception as e:
+        logger.error(f"Error loading dataset: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # ==================== AI CONFIGURATION ====================
@@ -282,9 +364,13 @@ async def ai_query(request: AIQueryRequest, payload: Dict = Depends(verify_token
     """Process AI query"""
     try:
         # Load dataset
-        df = db_manager.load_dataset(request.dataset_id)
-        if df is None:
+        dataset = db_manager.get_dataset_by_id(request.dataset_id)
+        if not dataset:
             raise HTTPException(status_code=404, detail="Dataset not found")
+
+        # Get data from metadata
+        data = dataset.get('metadata', {}).get('data', [])
+        df = pd.DataFrame(data)
         
         # Get AI client
         client = get_unified_client()
@@ -339,9 +425,13 @@ async def perform_ttest(
 ):
     """Perform T-test"""
     try:
-        df = db_manager.load_dataset(dataset_id)
-        if df is None:
+        dataset = db_manager.get_dataset_by_id(dataset_id)
+        if not dataset:
             raise HTTPException(status_code=404, detail="Dataset not found")
+
+        # Get data from metadata
+        data = dataset.get('metadata', {}).get('data', [])
+        df = pd.DataFrame(data)
         
         analyzer = DataAnalyzer(df)
         result = analyzer.perform_t_test(column, group_column)
@@ -379,3 +469,130 @@ async def health_check():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+# ==================== DATA CLEANING ====================
+
+@app.post("/api/data/clean/missing")
+async def handle_missing_data(
+    dataset_id: str = Form(...),
+    strategy: str = Form(...),
+    columns: List[str] = Form(...),
+    fill_value: Optional[str] = Form(None),
+    payload: Dict = Depends(verify_token)
+):
+    """Handle missing data"""
+    try:
+        dataset = db_manager.get_dataset_by_id(dataset_id)
+        if not dataset:
+            raise HTTPException(status_code=404, detail="Dataset not found")
+        
+        # Get data
+        data = dataset.get('metadata', {}).get('data', [])
+        df = pd.DataFrame(data)
+        
+        # Apply strategy
+        from core.data_cleaning import DataCleaner
+        cleaner = DataCleaner(df)
+        
+        if strategy == "drop_rows":
+            df = cleaner.handle_missing(method="drop_rows", columns=columns)
+        elif strategy == "drop_columns":
+            df = cleaner.handle_missing(method="drop_columns", columns=columns)
+        elif strategy == "fill_mean":
+            df = cleaner.handle_missing(method="mean", columns=columns)
+        elif strategy == "fill_median":
+            df = cleaner.handle_missing(method="median", columns=columns)
+        elif strategy == "fill_mode":
+            df = cleaner.handle_missing(method="mode", columns=columns)
+        elif strategy == "fill_constant":
+            df = cleaner.handle_missing(method="constant", columns=columns, fill_value=fill_value)
+        elif strategy == "forward_fill":
+            df = cleaner.handle_missing(method="ffill", columns=columns)
+        elif strategy == "backward_fill":
+            df = cleaner.handle_missing(method="bfill", columns=columns)
+        elif strategy == "interpolate":
+            df = cleaner.handle_missing(method="interpolate", columns=columns)
+        
+        return {
+            "success": True,
+            "data": df.to_dict('records'),
+            "rows": len(df),
+            "columns": len(df.columns)
+        }
+    except Exception as e:
+        logger.error(f"Error handling missing data: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/data/clean/duplicates")
+async def remove_duplicates(
+    dataset_id: str = Form(...),
+    payload: Dict = Depends(verify_token)
+):
+    """Remove duplicate rows"""
+    try:
+        dataset = db_manager.get_dataset_by_id(dataset_id)
+        if not dataset:
+            raise HTTPException(status_code=404, detail="Dataset not found")
+        
+        data = dataset.get('metadata', {}).get('data', [])
+        df = pd.DataFrame(data)
+        
+        df = df.drop_duplicates()
+        
+        return {
+            "success": True,
+            "data": df.to_dict('records'),
+            "rows": len(df)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/data/clean/outliers")
+async def remove_outliers(
+    dataset_id: str = Form(...),
+    columns: List[str] = Form(...),
+    method: str = Form("iqr"),
+    payload: Dict = Depends(verify_token)
+):
+    """Remove outliers"""
+    try:
+        dataset = db_manager.get_dataset_by_id(dataset_id)
+        if not dataset:
+            raise HTTPException(status_code=404, detail="Dataset not found")
+        
+        data = dataset.get('metadata', {}).get('data', [])
+        df = pd.DataFrame(data)
+        
+        from core.data_cleaning import DataCleaner
+        cleaner = DataCleaner(df)
+        df = cleaner.remove_outliers(columns=columns, method=method)
+        
+        return {
+            "success": True,
+            "data": df.to_dict('records'),
+            "rows": len(df)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/data/download/{dataset_id}")
+async def download_dataset(dataset_id: str, payload: Dict = Depends(verify_token)):
+    """Download cleaned dataset as CSV"""
+    try:
+        dataset = db_manager.get_dataset_by_id(dataset_id)
+        if not dataset:
+            raise HTTPException(status_code=404, detail="Dataset not found")
+        
+        data = dataset.get('metadata', {}).get('data', [])
+        df = pd.DataFrame(data)
+        
+        # Convert to CSV
+        csv_data = df.to_csv(index=False)
+        
+        from fastapi.responses import Response
+        return Response(
+            content=csv_data,
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename={dataset.get('file_name', 'dataset.csv')}"}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
