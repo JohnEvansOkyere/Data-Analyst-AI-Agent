@@ -353,6 +353,23 @@ async def get_dataset(dataset_id: str, payload: Dict = Depends(verify_token)):
 
 # ==================== AI CONFIGURATION ====================
 
+@app.get("/api/ai/status")
+async def get_ai_status(payload: Dict = Depends(verify_token)):
+    """Check if AI is already configured from environment"""
+    try:
+        client = get_unified_client()
+        providers = client.get_available_providers()
+
+        return {
+            "configured": len(providers) > 0,
+            "active_provider": client.active_provider,
+            "active_model": client.active_model,
+            "available_providers": providers
+        }
+    except Exception as e:
+        logger.error(f"AI status error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/ai/configure")
 async def configure_ai(request: AIConfigRequest, payload: Dict = Depends(verify_token)):
     """Configure AI provider"""
