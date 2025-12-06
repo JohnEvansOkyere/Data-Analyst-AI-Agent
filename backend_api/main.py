@@ -614,13 +614,13 @@ async def download_dataset(dataset_id: str, payload: Dict = Depends(verify_token
         dataset = db_manager.get_dataset_by_id(dataset_id)
         if not dataset:
             raise HTTPException(status_code=404, detail="Dataset not found")
-        
+
         data = dataset.get('metadata', {}).get('data', [])
         df = pd.DataFrame(data)
-        
+
         # Convert to CSV
         csv_data = df.to_csv(index=False)
-        
+
         from fastapi.responses import Response
         return Response(
             content=csv_data,
@@ -628,4 +628,307 @@ async def download_dataset(dataset_id: str, payload: Dict = Depends(verify_token
             headers={"Content-Disposition": f"attachment; filename={dataset.get('file_name', 'dataset.csv')}"}
         )
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ==================== PROFESSIONAL EDA ENDPOINTS ====================
+
+@app.get("/api/eda/profile/{dataset_id}")
+async def get_data_profile(dataset_id: str, payload: Dict = Depends(verify_token)):
+    """Get comprehensive data profiling (like pandas-profiling)"""
+    try:
+        dataset = db_manager.get_dataset_by_id(dataset_id)
+        if not dataset:
+            raise HTTPException(status_code=404, detail="Dataset not found")
+
+        data = dataset.get('metadata', {}).get('data', [])
+        df = pd.DataFrame(data)
+        analyzer = DataAnalyzer(df)
+
+        # Generate comprehensive summary
+        summary = analyzer.generate_summary_statistics()
+
+        # Add shape info
+        summary['shape'] = {"rows": len(df), "columns": len(df.columns)}
+        summary['columns'] = df.columns.tolist()
+        summary['numeric_columns'] = analyzer.numeric_cols
+        summary['categorical_columns'] = analyzer.categorical_cols
+
+        # Add duplicate info
+        summary['duplicates'] = {
+            "count": int(df.duplicated().sum()),
+            "percentage": float(df.duplicated().sum() / len(df) * 100) if len(df) > 0 else 0
+        }
+
+        return summary
+
+    except Exception as e:
+        logger.error(f"Error profiling data: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/eda/correlation")
+async def calculate_correlation(
+    dataset_id: str = Form(...),
+    method: str = Form("pearson"),
+    payload: Dict = Depends(verify_token)
+):
+    """Calculate correlation matrix"""
+    try:
+        dataset = db_manager.get_dataset_by_id(dataset_id)
+        if not dataset:
+            raise HTTPException(status_code=404, detail="Dataset not found")
+
+        data = dataset.get('metadata', {}).get('data', [])
+        df = pd.DataFrame(data)
+        analyzer = DataAnalyzer(df)
+
+        corr_matrix = analyzer.calculate_correlations(method=method)
+
+        return {
+            "correlation_matrix": corr_matrix.to_dict() if not corr_matrix.empty else {},
+            "method": method,
+            "columns": corr_matrix.columns.tolist() if not corr_matrix.empty else []
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/eda/distribution")
+async def get_distribution(
+    dataset_id: str = Form(...),
+    column: str = Form(...),
+    bins: int = Form(30),
+    payload: Dict = Depends(verify_token)
+):
+    """Get distribution data for a column"""
+    try:
+        dataset = db_manager.get_dataset_by_id(dataset_id)
+        if not dataset:
+            raise HTTPException(status_code=404, detail="Dataset not found")
+
+        data = dataset.get('metadata', {}).get('data', [])
+        df = pd.DataFrame(data)
+
+        col_data = df[column].dropna()
+
+        # Check if numeric or categorical
+        if pd.api.types.is_numeric_dtype(col_data):
+            # Histogram data
+            hist, bin_edges = np.histogram(col_data, bins=bins)
+
+            return {
+                "type": "numeric",
+                "histogram": {
+                    "counts": hist.tolist(),
+                    "bin_edges": bin_edges.tolist()
+                },
+                "stats": {
+                    "mean": float(col_data.mean()),
+                    "median": float(col_data.median()),
+                    "std": float(col_data.std()),
+                    "min": float(col_data.min()),
+                    "max": float(col_data.max()),
+                    "q25": float(col_data.quantile(0.25)),
+                    "q75": float(col_data.quantile(0.75)),
+                    "skewness": float(col_data.skew()),
+                    "kurtosis": float(col_data.kurtosis())
+                }
+            }
+        else:
+            # Value counts for categorical
+            value_counts = col_data.value_counts().head(20)
+
+            return {
+                "type": "categorical",
+                "value_counts": value_counts.to_dict(),
+                "unique_count": int(col_data.nunique()),
+                "mode": str(col_data.mode()[0]) if len(col_data.mode()) > 0 else None
+            }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/eda/outliers")
+async def detect_outliers_endpoint(
+    dataset_id: str = Form(...),
+    column: str = Form(...),
+    method: str = Form("iqr"),
+    payload: Dict = Depends(verify_token)
+):
+    """Detect outliers in a column"""
+    try:
+        dataset = db_manager.get_dataset_by_id(dataset_id)
+        if not dataset:
+            raise HTTPException(status_code=404, detail="Dataset not found")
+
+        data = dataset.get('metadata', {}).get('data', [])
+        df = pd.DataFrame(data)
+        analyzer = DataAnalyzer(df)
+
+        result = analyzer.detect_outliers(column, method)
+        return result
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/eda/normality")
+async def test_normality_endpoint(
+    dataset_id: str = Form(...),
+    columns: str = Form(None),  # Comma-separated column names
+    payload: Dict = Depends(verify_token)
+):
+    """Test normality of columns"""
+    try:
+        dataset = db_manager.get_dataset_by_id(dataset_id)
+        if not dataset:
+            raise HTTPException(status_code=404, detail="Dataset not found")
+
+        data = dataset.get('metadata', {}).get('data', [])
+        df = pd.DataFrame(data)
+        analyzer = DataAnalyzer(df)
+
+        col_list = columns.split(',') if columns else None
+        results = analyzer.test_normality(col_list)
+
+        return {"normality_tests": results}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/eda/anova")
+async def perform_anova_endpoint(
+    dataset_id: str = Form(...),
+    column: str = Form(...),
+    group_column: str = Form(...),
+    payload: Dict = Depends(verify_token)
+):
+    """Perform ANOVA test"""
+    try:
+        dataset = db_manager.get_dataset_by_id(dataset_id)
+        if not dataset:
+            raise HTTPException(status_code=404, detail="Dataset not found")
+
+        data = dataset.get('metadata', {}).get('data', [])
+        df = pd.DataFrame(data)
+        analyzer = DataAnalyzer(df)
+
+        result = analyzer.perform_anova(column, group_column)
+        return result
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/eda/chi-square")
+async def perform_chi_square_endpoint(
+    dataset_id: str = Form(...),
+    column1: str = Form(...),
+    column2: str = Form(...),
+    payload: Dict = Depends(verify_token)
+):
+    """Perform chi-square test"""
+    try:
+        dataset = db_manager.get_dataset_by_id(dataset_id)
+        if not dataset:
+            raise HTTPException(status_code=404, detail="Dataset not found")
+
+        data = dataset.get('metadata', {}).get('data', [])
+        df = pd.DataFrame(data)
+        analyzer = DataAnalyzer(df)
+
+        result = analyzer.perform_chi_square(column1, column2)
+        return result
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/eda/insights/{dataset_id}")
+async def get_automated_insights(dataset_id: str, payload: Dict = Depends(verify_token)):
+    """Generate automated insights about the dataset"""
+    try:
+        dataset = db_manager.get_dataset_by_id(dataset_id)
+        if not dataset:
+            raise HTTPException(status_code=404, detail="Dataset not found")
+
+        data = dataset.get('metadata', {}).get('data', [])
+        df = pd.DataFrame(data)
+        analyzer = DataAnalyzer(df)
+
+        insights = []
+
+        # Missing data insights
+        missing = df.isnull().sum()
+        high_missing = missing[missing > len(df) * 0.1]  # > 10% missing
+        if len(high_missing) > 0:
+            insights.append({
+                "type": "warning",
+                "category": "data_quality",
+                "title": "High Missing Data",
+                "message": f"{len(high_missing)} columns have >10% missing values",
+                "details": high_missing.to_dict()
+            })
+
+        # Duplicate insights
+        dup_count = df.duplicated().sum()
+        if dup_count > 0:
+            insights.append({
+                "type": "warning",
+                "category": "data_quality",
+                "title": "Duplicate Rows",
+                "message": f"Found {dup_count} duplicate rows ({dup_count/len(df)*100:.2f}%)"
+            })
+
+        # High cardinality categorical features
+        for col in analyzer.categorical_cols:
+            unique_ratio = df[col].nunique() / len(df)
+            if unique_ratio > 0.9:
+                insights.append({
+                    "type": "info",
+                    "category": "feature_engineering",
+                    "title": "High Cardinality Feature",
+                    "message": f"Column '{col}' has {df[col].nunique()} unique values ({unique_ratio*100:.1f}% of rows)",
+                    "suggestion": "Consider grouping rare categories or using embeddings"
+                })
+
+        # Highly correlated features
+        if len(analyzer.numeric_cols) >= 2:
+            corr_matrix = analyzer.calculate_correlations()
+            high_corr = []
+            for i in range(len(corr_matrix.columns)):
+                for j in range(i+1, len(corr_matrix.columns)):
+                    if abs(corr_matrix.iloc[i, j]) > 0.9:
+                        high_corr.append({
+                            "col1": corr_matrix.columns[i],
+                            "col2": corr_matrix.columns[j],
+                            "correlation": float(corr_matrix.iloc[i, j])
+                        })
+
+            if high_corr:
+                insights.append({
+                    "type": "warning",
+                    "category": "multicollinearity",
+                    "title": "Highly Correlated Features",
+                    "message": f"Found {len(high_corr)} pairs of highly correlated features (|r| > 0.9)",
+                    "details": high_corr,
+                    "suggestion": "Consider removing redundant features"
+                })
+
+        # Imbalanced target (if last column is categorical and small unique values)
+        if len(analyzer.categorical_cols) > 0:
+            last_col = df.columns[-1]
+            if last_col in analyzer.categorical_cols and df[last_col].nunique() <= 10:
+                value_counts = df[last_col].value_counts()
+                imbalance_ratio = value_counts.max() / value_counts.min()
+                if imbalance_ratio > 3:
+                    insights.append({
+                        "type": "warning",
+                        "category": "class_imbalance",
+                        "title": "Imbalanced Target Variable",
+                        "message": f"Column '{last_col}' has imbalanced distribution (ratio: {imbalance_ratio:.1f}:1)",
+                        "details": value_counts.to_dict(),
+                        "suggestion": "Consider using SMOTE, class weights, or stratified sampling"
+                    })
+
+        return {"insights": insights, "total_insights": len(insights)}
+
+    except Exception as e:
+        logger.error(f"Error generating insights: {e}")
         raise HTTPException(status_code=500, detail=str(e))
