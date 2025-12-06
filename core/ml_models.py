@@ -125,8 +125,16 @@ class MLModelTrainer:
         if feature_columns is None:
             feature_columns = [col for col in df.columns if col != target_column]
 
+        # Validate we have features
+        if len(feature_columns) == 0:
+            raise ValueError("No feature columns available. Please select at least one feature.")
+
         X = df[feature_columns].copy()
         y = df[target_column].copy()
+
+        # Validate we have data
+        if len(X) == 0 or len(y) == 0:
+            raise ValueError("Empty dataset. Please ensure your data has rows.")
 
         # Handle categorical features
         categorical_cols = X.select_dtypes(include=['object', 'category']).columns
@@ -134,8 +142,17 @@ class MLModelTrainer:
             # One-hot encode categorical variables
             X = pd.get_dummies(X, columns=categorical_cols, drop_first=True)
 
-        # Handle missing values
-        X = X.fillna(X.mean())
+        # Validate we still have features after encoding
+        if X.shape[1] == 0:
+            raise ValueError("No features remaining after preprocessing.")
+
+        # Handle missing values - only for numeric columns
+        numeric_cols = X.select_dtypes(include=[np.number]).columns
+        if len(numeric_cols) > 0:
+            X[numeric_cols] = X[numeric_cols].fillna(X[numeric_cols].mean())
+
+        # Fill any remaining NaN with 0 (for any non-numeric that slipped through)
+        X = X.fillna(0)
 
         # Encode target if categorical
         if y.dtype == 'object' or y.dtype.name == 'category':
@@ -250,25 +267,65 @@ class MLModelTrainer:
                 'params': params
             }
         else:
-            # Supervised learning
+            # Supervised learning - validate inputs first
+            if X_train is None or len(X_train) == 0:
+                raise ValueError("X_train is empty or None")
+            if y_train is None or len(y_train) == 0:
+                raise ValueError("y_train is empty or None")
+
             self.model.fit(X_train, y_train)
             training_time = (datetime.now() - start_time).total_seconds()
 
-            # Cross-validation
-            cv_scores = cross_val_score(
-                self.model, X_train, y_train,
-                cv=cv_folds,
-                scoring='r2' if model_type == 'regression' else 'accuracy'
-            )
+            # Cross-validation with dynamic fold adjustment
+            # Check if we have enough samples for CV
+            min_samples_per_fold = 2
+            n_samples = len(X_train)
+
+            # For classification, check minimum samples per class
+            if model_type == 'classification':
+                try:
+                    unique, counts = np.unique(y_train, return_counts=True)
+                    min_class_count = counts.min() if len(counts) > 0 else 1
+                    # cv_folds should not exceed the minimum class count
+                    adjusted_cv_folds = min(cv_folds, min_class_count, max(2, n_samples // 10))
+                except Exception:
+                    # Fallback if unique fails
+                    adjusted_cv_folds = min(cv_folds, max(2, n_samples // 10))
+            else:
+                # For regression, just check total samples
+                adjusted_cv_folds = min(cv_folds, max(2, n_samples // 10))
+
+            # Only do CV if we have enough samples
+            if adjusted_cv_folds >= 2 and n_samples >= adjusted_cv_folds * min_samples_per_fold:
+                try:
+                    cv_scores = cross_val_score(
+                        self.model, X_train, y_train,
+                        cv=adjusted_cv_folds,
+                        scoring='r2' if model_type == 'regression' else 'accuracy'
+                    )
+                    cv_mean = float(cv_scores.mean())
+                    cv_std = float(cv_scores.std())
+                    cv_scores_list = cv_scores.tolist()
+                except Exception as e:
+                    # If CV fails, skip it
+                    cv_scores_list = []
+                    cv_mean = None
+                    cv_std = None
+            else:
+                # Not enough samples for CV
+                cv_scores_list = []
+                cv_mean = None
+                cv_std = None
 
             results = {
                 'model_name': model_name,
                 'model_type': model_type,
                 'training_time': training_time,
-                'cv_scores': cv_scores.tolist(),
-                'cv_mean': float(cv_scores.mean()),
-                'cv_std': float(cv_scores.std()),
-                'params': params
+                'cv_scores': cv_scores_list,
+                'cv_mean': cv_mean,
+                'cv_std': cv_std,
+                'params': params,
+                'cv_folds_used': adjusted_cv_folds if cv_scores_list else 0
             }
 
             # Feature importance (if available)
@@ -310,6 +367,12 @@ class MLModelTrainer:
         """
         if self.model is None:
             raise ValueError("No model trained. Call train_model() first.")
+
+        # Validate inputs
+        if X_test is None or len(X_test) == 0:
+            raise ValueError("X_test is empty or None")
+        if y_test is None or len(y_test) == 0:
+            raise ValueError("y_test is empty or None")
 
         if self.model_type == 'clustering':
             # Clustering evaluation

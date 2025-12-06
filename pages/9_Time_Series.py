@@ -58,13 +58,30 @@ st.sidebar.header("⚙️ Time Series Configuration")
 date_columns = []
 for col in df.columns:
     try:
-        pd.to_datetime(df[col])
-        date_columns.append(col)
+        # Skip numeric columns that look like IDs
+        if df[col].dtype in ['int64', 'float64']:
+            # Check if it's likely an ID (sequential integers)
+            if df[col].nunique() == len(df):
+                continue
+
+        # Try to convert to datetime
+        test_dates = pd.to_datetime(df[col], errors='coerce')
+
+        # Only include if at least 50% of values are valid dates
+        valid_pct = test_dates.notna().sum() / len(df)
+        if valid_pct >= 0.5:
+            date_columns.append(col)
     except:
         continue
 
 if len(date_columns) == 0:
-    st.error("⚠️ No date columns detected in the dataset. Please ensure you have a datetime column.")
+    st.error("⚠️ No date columns detected in the dataset.")
+    st.info("""
+    **Tips for time series analysis:**
+    - Ensure you have a column with dates (e.g., '2024-01-01', 'Jan 2024')
+    - Date columns should contain actual date/time values, not IDs
+    - Common date column names: date, timestamp, time, datetime, period
+    """)
     st.stop()
 
 date_column = st.sidebar.selectbox("Date Column", date_columns)

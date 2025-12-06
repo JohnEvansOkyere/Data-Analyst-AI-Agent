@@ -448,19 +448,149 @@ with tab4:
         selected_model = st.selectbox("Select Model", available_models)
 
         # Model parameters
-        with st.expander("⚙️ Model Parameters"):
+        with st.expander("⚙️ Model Parameters", expanded=True):
+            st.markdown("**Customize model hyperparameters:**")
             params = {}
 
+            # Random Forest / Extra Trees
             if "Random Forest" in selected_model or "Extra Trees" in selected_model:
-                params['n_estimators'] = st.slider("Number of Trees", 50, 500, 100, 50)
-                params['max_depth'] = st.slider("Max Depth", 1, 50, 10)
+                col1, col2 = st.columns(2)
+                with col1:
+                    params['n_estimators'] = st.slider("Number of Trees", 50, 500, 100, 50)
+                    params['max_depth'] = st.slider("Max Depth", 1, 50, 10)
+                with col2:
+                    params['min_samples_split'] = st.slider("Min Samples Split", 2, 20, 2)
+                    params['min_samples_leaf'] = st.slider("Min Samples Leaf", 1, 20, 1)
+
+            # Gradient Boosting
             elif "Gradient Boosting" in selected_model:
-                params['n_estimators'] = st.slider("Number of Estimators", 50, 500, 100, 50)
-                params['learning_rate'] = st.slider("Learning Rate", 0.01, 1.0, 0.1, 0.01)
-            elif "K-Means" in selected_model:
-                params['n_clusters'] = st.slider("Number of Clusters", 2, 20, 3)
+                col1, col2 = st.columns(2)
+                with col1:
+                    params['n_estimators'] = st.slider("Number of Estimators", 50, 500, 100, 50)
+                    params['learning_rate'] = st.slider("Learning Rate", 0.01, 1.0, 0.1, 0.01)
+                with col2:
+                    params['max_depth'] = st.slider("Max Depth", 1, 20, 3)
+                    params['subsample'] = st.slider("Subsample", 0.5, 1.0, 1.0, 0.1)
+
+            # Decision Tree
+            elif "Decision Tree" in selected_model:
+                col1, col2 = st.columns(2)
+                with col1:
+                    params['max_depth'] = st.slider("Max Depth", 1, 50, 10)
+                    params['min_samples_split'] = st.slider("Min Samples Split", 2, 20, 2)
+                with col2:
+                    params['min_samples_leaf'] = st.slider("Min Samples Leaf", 1, 20, 1)
+                    criterion = st.selectbox("Criterion", ["gini", "entropy"] if task_type == "Classification" else ["squared_error", "absolute_error"])
+                    params['criterion'] = criterion
+
+            # SVC/SVR
+            elif "SVC" in selected_model or "SVR" in selected_model:
+                col1, col2 = st.columns(2)
+                with col1:
+                    params['C'] = st.slider("Regularization (C)", 0.01, 10.0, 1.0, 0.1)
+                    params['kernel'] = st.selectbox("Kernel", ["rbf", "linear", "poly", "sigmoid"])
+                with col2:
+                    if params['kernel'] == 'rbf':
+                        params['gamma'] = st.selectbox("Gamma", ['scale', 'auto'])
+                    if params['kernel'] == 'poly':
+                        params['degree'] = st.slider("Polynomial Degree", 2, 5, 3)
+
+            # KNN
             elif "KNN" in selected_model:
-                params['n_neighbors'] = st.slider("Number of Neighbors", 1, 50, 5)
+                col1, col2 = st.columns(2)
+                with col1:
+                    params['n_neighbors'] = st.slider("Number of Neighbors", 1, 50, 5)
+                    params['weights'] = st.selectbox("Weights", ["uniform", "distance"])
+                with col2:
+                    params['metric'] = st.selectbox("Distance Metric", ["euclidean", "manhattan", "minkowski"])
+                    params['algorithm'] = st.selectbox("Algorithm", ["auto", "ball_tree", "kd_tree", "brute"])
+
+            # Logistic Regression
+            elif "Logistic Regression" in selected_model:
+                col1, col2 = st.columns(2)
+                with col1:
+                    params['C'] = st.slider("Regularization (C)", 0.01, 10.0, 1.0, 0.1)
+                    params['penalty'] = st.selectbox("Penalty", ["l2", "l1", "elasticnet", "none"])
+                with col2:
+                    params['solver'] = st.selectbox("Solver", ["lbfgs", "liblinear", "saga"])
+                    params['max_iter'] = st.slider("Max Iterations", 100, 1000, 100)
+
+            # Ridge
+            elif "Ridge" in selected_model:
+                params['alpha'] = st.slider("Regularization Alpha", 0.01, 10.0, 1.0, 0.1)
+                params['solver'] = st.selectbox("Solver", ["auto", "svd", "cholesky", "lsqr", "saga"])
+
+            # Lasso
+            elif "Lasso" in selected_model:
+                params['alpha'] = st.slider("Regularization Alpha", 0.01, 10.0, 1.0, 0.1)
+                params['max_iter'] = st.slider("Max Iterations", 100, 10000, 1000)
+
+            # MLP (Neural Network)
+            elif "MLP" in selected_model:
+                col1, col2 = st.columns(2)
+                with col1:
+                    hidden_size = st.slider("Hidden Layer Size", 10, 200, 100, 10)
+                    params['hidden_layer_sizes'] = (hidden_size,)
+                    params['activation'] = st.selectbox("Activation", ["relu", "tanh", "logistic"])
+                with col2:
+                    params['alpha'] = st.slider("Regularization Alpha", 0.0001, 0.01, 0.0001, 0.0001)
+                    params['learning_rate'] = st.selectbox("Learning Rate", ["constant", "adaptive"])
+                    params['max_iter'] = st.slider("Max Iterations", 100, 1000, 200)
+
+            # Naive Bayes
+            elif "Naive Bayes" in selected_model:
+                st.info("Naive Bayes uses default parameters (no tuning required)")
+
+            # K-Means
+            elif "K-Means" in selected_model:
+                col1, col2 = st.columns(2)
+                with col1:
+                    params['n_clusters'] = st.slider("Number of Clusters", 2, 20, 3)
+                    params['max_iter'] = st.slider("Max Iterations", 100, 1000, 300)
+                with col2:
+                    params['n_init'] = st.slider("Number of Initializations", 5, 20, 10)
+                    params['algorithm'] = st.selectbox("Algorithm", ["lloyd", "elkan"])
+
+            # DBSCAN
+            elif "DBSCAN" in selected_model:
+                col1, col2 = st.columns(2)
+                with col1:
+                    params['eps'] = st.slider("Epsilon (neighborhood size)", 0.1, 5.0, 0.5, 0.1)
+                    params['min_samples'] = st.slider("Minimum Samples", 2, 20, 5)
+                with col2:
+                    params['metric'] = st.selectbox("Distance Metric", ["euclidean", "manhattan", "cosine"])
+                    params['algorithm'] = st.selectbox("Algorithm", ["auto", "ball_tree", "kd_tree", "brute"])
+
+            # Hierarchical
+            elif "Hierarchical" in selected_model:
+                col1, col2 = st.columns(2)
+                with col1:
+                    params['n_clusters'] = st.slider("Number of Clusters", 2, 20, 3)
+                    params['linkage'] = st.selectbox("Linkage", ["ward", "complete", "average", "single"])
+                with col2:
+                    params['metric'] = st.selectbox("Distance Metric", ["euclidean", "manhattan", "cosine"])
+
+            # MeanShift
+            elif "MeanShift" in selected_model:
+                st.info("MeanShift automatically determines the number of clusters")
+                params['bandwidth'] = st.slider("Bandwidth (kernel width)", 0.5, 5.0, 1.0, 0.1)
+
+            # Spectral
+            elif "Spectral" in selected_model:
+                col1, col2 = st.columns(2)
+                with col1:
+                    params['n_clusters'] = st.slider("Number of Clusters", 2, 20, 3)
+                    params['affinity'] = st.selectbox("Affinity", ["rbf", "nearest_neighbors"])
+                with col2:
+                    params['assign_labels'] = st.selectbox("Assign Labels", ["kmeans", "discretize"])
+
+            # Linear Regression (no parameters)
+            elif "Linear Regression" in selected_model:
+                st.info("Linear Regression uses Ordinary Least Squares (no hyperparameters to tune)")
+
+            if params:
+                st.markdown("**Current Parameters:**")
+                st.json(params)
 
         col1, col2 = st.columns([1, 1])
 
@@ -510,11 +640,17 @@ with tab4:
                     with col1:
                         st.metric("Training Time", f"{train_result['training_time']:.2f}s")
                     with col2:
-                        if 'cv_mean' in train_result:
+                        if train_result.get('cv_mean') is not None:
                             st.metric("CV Score", f"{train_result['cv_mean']:.4f}")
+                            if train_result.get('cv_folds_used', 0) > 0:
+                                st.caption(f"Using {train_result['cv_folds_used']}-fold CV")
+                        else:
+                            st.info("CV skipped (small dataset)")
                     with col3:
-                        if 'cv_std' in train_result:
+                        if train_result.get('cv_std') is not None:
                             st.metric("CV Std Dev", f"{train_result['cv_std']:.4f}")
+                        elif train_result.get('cv_mean') is None:
+                            st.info("Use test set for evaluation")
 
                     # Store model and data
                     st.session_state['trained_model'] = trainer
